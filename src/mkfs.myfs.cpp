@@ -196,20 +196,22 @@ uint32_t readFAT(uint32_t blockPointer){
 }
 
 void addDateiSb(){
-	Superblock sb;
-	bd->read(0,(char*)&sb);
-	sb.Dateien++;
-	bd->write(0,(char*)&sb);
+	char copy[512];
+	Superblock* sb= (Superblock*) copy;
+	bd->read(0,(char*)sb);
+	sb->Dateien = sb->Dateien+1;
+	bd->write(0,(char*)sb);
 }
 
 void writeSb() {
-	Superblock sb;
-	sb.Grösse = GROESSE;
-	sb.PointerData=DATA_START;
-	sb.PointerFat=FAT_START;
-	sb.PointerNode=NODE_START;
+	char copy[512];
+	Superblock* sb = (Superblock*) copy;
+	sb->Grösse = GROESSE;
+	sb->PointerData=DATA_START;
+	sb->PointerFat=FAT_START;
+	sb->PointerNode=NODE_START;
 
-	bd->write(0,(char*)&sb);
+	bd->write(0,(char*)sb);
 
 }
 
