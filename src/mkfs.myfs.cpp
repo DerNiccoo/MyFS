@@ -23,113 +23,20 @@
 #include <cstring>
 #include <time.h>
 #include <bitset>
-
-
 #include <sstream>
 #include <string>
 #include <iostream>
 
 using namespace std;
 
-//fusermount -u ORDNER
-//./mkmyfs.myfs zum starten
-//make -f Makefile <- builden
-/*
-static int my_getattr(const char *path, struct stat *st) {
-	st->st_uid = getuid(); // The owner of the file/directory is the user who mounted the filesystem
-	st->st_gid = getgid(); // The group of the file/directory is the same as the group of the user who mounted the filesystem
-	st->st_atime = time( NULL); // The last "a"ccess of the file/directory is right now
-	st->st_mtime = time( NULL); // The last "m"odification of the file/directory is right now
-
-	if (strcmp(path, "/") == 0) {
-		st->st_mode = S_IFDIR | 0444;
-		st->st_nlink = 2;
-	} else {
-		st->st_mode = S_IFREG | 0644;
-		st->st_nlink = 1;
-		st->st_size = 1024;
-	}
-
-	return 0;
-}
-
-static int my_readdir(const char *path, void *buffer, fuse_fill_dir_t filler,
-		off_t offset, struct fuse_file_info *fi) {
-	printf("--> Getting The List of Files of %s\n", path);
-
-	filler(buffer, ".", NULL, 0); // Current Directory
-	filler(buffer, "..", NULL, 0); // Parent Directory
-
-	if (strcmp(path, "/") == 0) {
-		filler(buffer, "Datei 1", NULL, 0);
-		filler(buffer, "Datei 2", NULL, 0);
-	}
-
-	return 0;
-}
-
-static int my_read(const char *path, char *buf, size_t size, off_t offset, fuse_file_info *info) {
-	int fd;
-	int res;
-
-	fd = open(path, O_RDONLY);
-	if (fd == -1)
-		return -errno;
-
-	res = pread(fd, buf, size, offset);
-	if (res == -1)
-		res = -errno;
-
-	close(fd);
-	return res;
-}
-
-static int my_link(const char *from, const char *to) {
-	int res;
-
-	res = link(from, to);
-	if (res == -1)
-		return -errno;
-
-	return 0;
-}
-
-static struct fuse_operations operations = {
-    .getattr = my_getattr,
-    .readlink = NULL,
-    .getdir = NULL,
-    .mknod = NULL,
-    .mkdir = NULL,
-    .unlink = NULL,
-    .rmdir = NULL,
-    .symlink = NULL,
-    .rename = NULL,
-    .link = my_link,
-    .chmod = NULL,
-    .chown = NULL,
-    .truncate = NULL,
-    .utime = NULL,
-    .open = NULL,
-    .read = my_read,
-    .write = NULL,
-    .statfs = NULL,
-    .flush = NULL,
-    .release = NULL,
-    .fsync = NULL,
-    .setxattr = NULL,
-    .getxattr = NULL,
-    .listxattr = NULL,
-    .removexattr = NULL,
-    .opendir = NULL,
-    .readdir = my_readdir,
-};*/
-
 BlockDevice* bd;
+
 uint32_t const FAT_ENDE = 3;
 uint32_t const FAT_START = 1;
 uint32_t const NODE_START = 4;
 uint32_t const NODE_ENDE = 9;
-uint32_t const DATA_START = 10;
+uint32_t const ROOT_BLOCK = 10;
+uint32_t const DATA_START = 11;
 uint32_t const MAX_UINT = -1;
 uint32_t const GROESSE = -1;
 
@@ -145,7 +52,7 @@ struct Inode {
 };
 
 struct Superblock {
-	uint32_t Grösse;
+	uint32_t Groesse;
 	uint32_t PointerFat;
 	uint32_t PointerNode;
 	uint32_t PointerData;
@@ -157,13 +64,13 @@ uint32_t findNextFreeBlock();
 void setFATBlockPointer(uint32_t blockPointer, uint32_t nextPointer);
 uint32_t readFAT(uint32_t blockPointer);
 void fillBlocks(uint32_t from, uint32_t to);
-void copyFile(BlockDevice *bd, char* path);
+int copyFile(char* path);
 void createInode(char* path, uint32_t blockPointer);
 void writeInode(char* data);
 Inode readNode(uint32_t nodePointer);
-void appendString(string *s, uint32_t append);
-//TODO: readDataBlock(uint32_t blockPointer)
-//TODO: readFATPointer(uint32_t xyz)
+int sumRootPointer();
+bool checkDuplicate(char* path);
+void writeRootPointer(uint32_t newPointer);
 
 
 void getPath(char *arg, char* path){
@@ -206,13 +113,62 @@ void addDateiSb(){
 void writeSb() {
 	char copy[512];
 	Superblock* sb = (Superblock*) copy;
-	sb->Grösse = GROESSE;
-	sb->PointerData=DATA_START;
-	sb->PointerFat=FAT_START;
-	sb->PointerNode=NODE_START;
+	sb->Groesse = GROESSE;
+	sb->PointerData = DATA_START;
+	sb->PointerFat = FAT_START;
+	sb->PointerNode = NODE_START;
 
-	bd->write(0,(char*)sb);
+	bd->write(0, (char*)sb);
+}
 
+int sumRootPointer(){
+	char read[512];
+	int sum = 0;
+
+	bd->read(ROOT_BLOCK, read);
+
+	for (int i = 0; i < 512; i+=4) {
+		uint32_t pointer = read[i] << 24 | read[i+1] << 16 | read[i+2] << 8 | read[i+3];
+		if (pointer != 0)
+			sum++;
+	}
+	return sum;
+}
+
+void writeRootPointer(uint32_t newPointer) {
+	char read[512];
+
+	bd->read(ROOT_BLOCK, read);
+	for (int i = 0; i < 512; i+=4) {
+		uint32_t pointer = read[i] << 24 | read[i+1] << 16 | read[i+2] << 8 | read[i+3];
+		if (pointer == 0){
+			char data[4];
+			memcpy(data, &newPointer, 4);
+			for (int k = 0; k < 4; k++)	//damit die zahlen im normalen Style sind 0011 = 3 und nicht 1100 = 3
+				read[i+3-k] = data[k];
+			bd->write(ROOT_BLOCK, read);
+			return;
+		}
+	}
+}
+//Position: -1 = Ersten Treffer
+//Position: PointerPosition, es wird die NÄCHSTE zurückgegeben	(damit lücken übersprungen werden, wenn man z.B. etwas löscht)
+//Rückgabe: 0 = war der letzte Pointer sonst gibt es immer den nächsten Pointer
+uint32_t readNextRootPointer(uint32_t position){
+	char read[512];
+
+	bd->read(ROOT_BLOCK, read);
+	for (int i = 0; i < 512; i+=4) {
+		uint32_t pointer = read[i] << 24 | read[i+1] << 16 | read[i+2] << 8 | read[i+3];
+
+		if (pointer != 0 && position == MAX_UINT)
+			return pointer;
+
+		if (pointer == position)
+			position = MAX_UINT;
+	}
+
+	return 0;
 }
 
 void fillBlocks(uint32_t from, uint32_t to){
@@ -224,7 +180,33 @@ void fillBlocks(uint32_t from, uint32_t to){
 		bd->write(i, fill);
 }
 
-void copyFile(BlockDevice *bd, char* path){
+bool checkDuplicate(char* path) {
+	Inode node;
+	uint32_t position = MAX_UINT;
+	char* newFileName = strtok(path, "/");
+	char fileName[255];
+
+	strcpy(fileName, newFileName);
+
+	if (sumRootPointer() == 0)	//Die erste Datei kann kein duplicate sein.
+		return false;
+
+	cout << fileName << endl;
+
+	while((position = readNextRootPointer(position)) != 0){
+		bd->read(position, (char*)&node);
+		cout << fileName << " : " << node.fileName << endl;
+		if (fileName == node.fileName)
+			return true;
+	}
+
+	return false;
+}
+
+int copyFile(char* path){
+	if (checkDuplicate(path))
+		return -1;
+
 	FILE *f = fopen(path, "rb");
 	fseek(f, 0, SEEK_END);
 	long fsize = ftell(f);
@@ -256,6 +238,7 @@ void copyFile(BlockDevice *bd, char* path){
 		bd->write(blockPointer, string);
 		setFATBlockPointer(blockPointer, MAX_UINT);
 	}
+	return 0;
 }
 
 void createInode(char* path, uint32_t blockPointer) {
@@ -286,6 +269,7 @@ void writeInode(char* data) {
 		bd->read(i, read);
 		if (read[0] == 0) {	//Leerer Block
 			bd->write(i, data);
+			writeRootPointer(i);
 			return;
 		}
 	}
@@ -352,7 +336,6 @@ uint32_t findNextFreeBlock(){
 
 int main(int argc, char *argv[]) {
 
-	printf("\n\n");
 	if (argc < 3)
 		printf("using: mkfs.myfs containerdatei [input-datei ...]\n");
 
@@ -364,16 +347,10 @@ int main(int argc, char *argv[]) {
 	fillBlocks(0, 16);
 	writeSb();
 
-	for (int i = 2; i < argc; i++)
-		copyFile(bd, argv[i]);
-
-
-	cout << "Output: " << endl;
-
-	Inode node = readNode(0);
-	cout << node.fileName << endl;
-	cout << node.size << endl;
-
+	for (int i = 2; i < argc; i++) {
+		if (copyFile(argv[i]) == -1)
+			cout << "Duplicate file name!" << endl;
+	}
 
 
 	bd->close();
