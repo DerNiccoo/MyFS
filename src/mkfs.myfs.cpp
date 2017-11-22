@@ -133,7 +133,7 @@ uint32_t const DATA_START = 10;
 uint32_t const MAX_UINT = -1;
 
 struct Inode {
-	char* fileName; //max 255bytes (FileName + 24bytes) (2 Für die Länge)
+	char fileName[255]; //max 255bytes (FileName + 24bytes) (2 Für die Länge)
 	uint32_t size;	//4byte
 	short gid;		//2byte
 	short uid;		//2byte
@@ -178,7 +178,7 @@ uint32_t readFAT(uint32_t blockPointer){
 
 	uint32_t ergebnis = 0;
 	uint32_t k = 2147483648;
-	for (int i = (32 * offsetBlockPos); i < (32 * (offsetBlockPos + 1)); i++){
+	for (int i = (4 * offsetBlockPos); i < (4 * (offsetBlockPos + 1)); i++){
 		ergebnis += ((unsigned short)read[i] / 65535) * k;
 		k/=2;
 	}
@@ -229,64 +229,34 @@ void copyFile(BlockDevice *bd, char* path){
 	}
 }
 
-void appendString(string *s, uint32_t append){
-	char data[4];
-	memcpy(data, &append, sizeof(append));
-	s->append(data, 4);
-}
-
-void appendString(string *s, short append){
-	char data[2];
-	memcpy(data, &append, sizeof(append));
-	s->append(data, 2);
-}
-
 void createInode(char* path, uint32_t blockPointer) {
-	Inode node;
+	char copy[512];	//Max. größe 512 und auch immer 512 groß
+	Inode* node = (Inode*)copy;
 	char* chars_array = strtok(path, "/");
 
 	struct stat meta;
 	stat(path, &meta);
 
-	node.fileName = chars_array;
-	node.size = meta.st_size;
-	node.gid = meta.st_gid;
-	node.uid = meta.st_uid;
-	node.mode = meta.st_mode;
+	strcpy(node->fileName, chars_array);
 
-	node.atim = meta.st_atim.tv_sec;
-	node.mtim = meta.st_mtim.tv_sec;
-	node.ctim = meta.st_ctim.tv_sec;
+	node->size = meta.st_size;
+	node->gid = meta.st_gid;
+	node->uid = meta.st_uid;
+	node->mode = meta.st_mode;
 
-	string s;
-	s.append(node.fileName);
-    appendString(&s, node.size);
-    appendString(&s, node.gid);
-    appendString(&s, node.uid);
-    appendString(&s, node.mode);
-    appendString(&s, node.atim);
-    appendString(&s, node.mtim);
-    appendString(&s, node.ctim);
+	node->atim = meta.st_atim.tv_sec;
+	node->mtim = meta.st_mtim.tv_sec;
+	node->ctim = meta.st_ctim.tv_sec;
 
-    char data[512];
-    strcpy(data, s.c_str());
-
-    for (int i = 0; i < s.size(); i++)
-    	cout << (unsigned)data[i] << endl;
-    cout << endl;
-
-    writeInode(data);
+    writeInode((char*)node);
 }
-/*
- * Er fängt direkt an data zu lesen, es ist vermutlich noch ein Fehler in dem Schreiben der passenden Daten.
- * Zumindest werden sie (meiner Meinung nach) bisher richtig gebildet. */
+
 void writeInode(char* data) {
 	char read[512];
 
 	for (uint32_t i = NODE_START; i < NODE_ENDE; i++){
 		bd->read(i, read);
 		if (read[0] == 0) {	//Leerer Block
-			cout << "Inode block der frei ist: " << i << endl;
 			bd->write(i, data);
 			return;
 		}
@@ -295,18 +265,14 @@ void writeInode(char* data) {
 
 Inode readNode(uint32_t nodePointer){
 	Inode node;
-	int currentPointer = 0;
-	char read[512];
+	uint32_t currentPointer = 0;
 
-	for (int i = NODE_START; i < NODE_ENDE; i++){
+	for (unsigned int i = NODE_START; i < NODE_ENDE; i++){
 		if (nodePointer == currentPointer) {	//Richtige Node
-			bd->read(i, read);
-			char name[255];
-			for (short k = 0; k < 256; k++){ //Name = MAX 255
-				name[k] = read[k];
-			}
-			strcpy(node.fileName, name);
+			bd->read(i, (char*)&node);
+			return node;
 		}
+		currentPointer++;
 	}
 
 	return node;
@@ -369,17 +335,15 @@ int main(int argc, char *argv[]) {
 	bd->create(path);
 	fillBlocks(0, 16);
 
-	for (int i = 2; i < 3; i++)
+	for (int i = 2; i < argc; i++)
 		copyFile(bd, argv[i]);
 
-	char output[1];
-	for (int i = 6; i < 12; i++) {
-		bd->read(i, output);
-		//cout << output << endl;
-	}
+
+	cout << "Output: " << endl;
 
 	Inode node = readNode(0);
 	cout << node.fileName << endl;
+	cout << node.size << endl;
 
 	bd->close();
 	return 0;
