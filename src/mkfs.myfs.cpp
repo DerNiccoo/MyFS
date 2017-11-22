@@ -131,6 +131,7 @@ uint32_t const NODE_START = 4;
 uint32_t const NODE_ENDE = 9;
 uint32_t const DATA_START = 10;
 uint32_t const MAX_UINT = -1;
+uint32_t const GROESSE = -1;
 
 struct Inode {
 	char fileName[255]; //max 255bytes (FileName + 24bytes) (2 Für die Länge)
@@ -141,6 +142,14 @@ struct Inode {
 	uint32_t atim;	//4byte
 	uint32_t mtim;	//4byte
 	uint32_t ctim;	//4byte
+};
+
+struct Superblock {
+	uint32_t Grösse;
+	uint32_t PointerFat;
+	uint32_t PointerNode;
+	uint32_t PointerData;
+	char Dateien;
 };
 
 void getPath(char *arg, char* path);
@@ -184,6 +193,26 @@ uint32_t readFAT(uint32_t blockPointer){
 	}
 
 	return ergebnis;
+}
+
+void addDateiSb(){
+	char copy[512];
+	Superblock* sb= (Superblock*) copy;
+	bd->read(0,(char*)sb);
+	sb->Dateien = sb->Dateien+1;
+	bd->write(0,(char*)sb);
+}
+
+void writeSb() {
+	char copy[512];
+	Superblock* sb = (Superblock*) copy;
+	sb->Grösse = GROESSE;
+	sb->PointerData=DATA_START;
+	sb->PointerFat=FAT_START;
+	sb->PointerNode=NODE_START;
+
+	bd->write(0,(char*)sb);
+
 }
 
 void fillBlocks(uint32_t from, uint32_t to){
@@ -238,7 +267,6 @@ void createInode(char* path, uint32_t blockPointer) {
 	stat(path, &meta);
 
 	strcpy(node->fileName, chars_array);
-
 	node->size = meta.st_size;
 	node->gid = meta.st_gid;
 	node->uid = meta.st_uid;
@@ -334,6 +362,7 @@ int main(int argc, char *argv[]) {
 	bd = new BlockDevice(512);
 	bd->create(path);
 	fillBlocks(0, 16);
+	writeSb();
 
 	for (int i = 2; i < argc; i++)
 		copyFile(bd, argv[i]);
@@ -344,6 +373,8 @@ int main(int argc, char *argv[]) {
 	Inode node = readNode(0);
 	cout << node.fileName << endl;
 	cout << node.size << endl;
+
+
 
 	bd->close();
 	return 0;
