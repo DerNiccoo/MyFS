@@ -131,6 +131,7 @@ uint32_t const NODE_START = 4;
 uint32_t const NODE_ENDE = 9;
 uint32_t const DATA_START = 10;
 uint32_t const MAX_UINT = -1;
+uint32_t const GROESSE = -1;
 
 struct Inode {
 	char* fileName; //max 255bytes (FileName + 24bytes) (2 Für die Länge)
@@ -141,6 +142,14 @@ struct Inode {
 	uint32_t atim;	//4byte
 	uint32_t mtim;	//4byte
 	uint32_t ctim;	//4byte
+};
+
+struct Superblock {
+	uint32_t Grösse;
+	uint32_t PointerFat;
+	uint32_t PointerNode;
+	uint32_t PointerData;
+	char Dateien;
 };
 
 void getPath(char *arg, char* path);
@@ -178,12 +187,30 @@ uint32_t readFAT(uint32_t blockPointer){
 
 	uint32_t ergebnis = 0;
 	uint32_t k = 2147483648;
-	for (int i = (32 * offsetBlockPos); i < (32 * (offsetBlockPos + 1)); i++){
+	for (int i = (4 * offsetBlockPos); i < (4 * (offsetBlockPos + 1)); i++){
 		ergebnis += ((unsigned short)read[i] / 65535) * k;
 		k/=2;
 	}
 
 	return ergebnis;
+}
+
+void addDateiSb(){
+	Superblock sb;
+	bd->read(0,(char*)&sb);
+	sb.Dateien++;
+	bd->write(0,(char*)&sb);
+}
+
+void writeSb() {
+	Superblock sb;
+	sb.Grösse = GROESSE;
+	sb.PointerData=DATA_START;
+	sb.PointerFat=FAT_START;
+	sb.PointerNode=NODE_START;
+
+	bd->write(0,(char*)&sb);
+
 }
 
 void fillBlocks(uint32_t from, uint32_t to){
@@ -271,9 +298,6 @@ void createInode(char* path, uint32_t blockPointer) {
     char data[512];
     strcpy(data, s.c_str());
 
-    for (int i = 0; i < s.size(); i++)
-    	cout << (unsigned)data[i] << endl;
-    cout << endl;
 
     writeInode(data);
 }
@@ -286,7 +310,6 @@ void writeInode(char* data) {
 	for (uint32_t i = NODE_START; i < NODE_ENDE; i++){
 		bd->read(i, read);
 		if (read[0] == 0) {	//Leerer Block
-			cout << "Inode block der frei ist: " << i << endl;
 			bd->write(i, data);
 			return;
 		}
@@ -369,17 +392,17 @@ int main(int argc, char *argv[]) {
 	bd->create(path);
 	fillBlocks(0, 16);
 
-	for (int i = 2; i < 3; i++)
+	writeSb();
+
+	for (int i = 2; i < argc; i++)
 		copyFile(bd, argv[i]);
 
-	char output[1];
-	for (int i = 6; i < 12; i++) {
+	char output[400];
+	for (int i = 0; i < 1; i++) {
 		bd->read(i, output);
-		//cout << output << endl;
+		cout<< i<<"i"<<output << endl;
 	}
 
-	Inode node = readNode(0);
-	cout << node.fileName << endl;
 
 	bd->close();
 	return 0;
