@@ -6,17 +6,13 @@
 //  Copyright © 2017 Oliver Waldhorst. All rights reserved.
 //
 
-#define NAME_LENGTH 255;
-#define BLOCK_SIZE 512;
-#define NUM_DIR_ENTRIES 64;
-#define NUM_OPEN_FILES 64;
-
 #include "myfs.h"
 #include "blockdevice.h"
 #include "macros.h"
 #include <unistd.h>
 #include <errno.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string>
 #include <iostream>
 #include <string.h>
@@ -29,41 +25,46 @@
 
 using namespace std;
 
+static int NAME_LENGTH     = 255; // TODO Chris: Replace all hard coded values with their equivalent...
+static int BLOCK_SIZE      = 512;
+static int NUM_DIR_ENTRIES =  64;
+static int NUM_OPEN_FILES  =  64;
+
 BlockDevice* bd;
 
-uint32_t const FAT_ENDE = 3;
-uint32_t const FAT_START = 1;
-uint32_t const NODE_START = 4;
-uint32_t const NODE_ENDE = 9;
-uint32_t const ROOT_BLOCK = 10;
-uint32_t const DATA_START = 11;
-uint32_t const MAX_UINT = -1;
-uint32_t const GROESSE = -1;
+uint32_t const FAT_ENDE    =  3;
+uint32_t const FAT_START   =  1;
+uint32_t const NODE_START  =  4;
+uint32_t const NODE_ENDE   =  9;
+uint32_t const ROOT_BLOCK  = 10;
+uint32_t const DATA_START  = 11;
+uint32_t const MAX_UINT    = -1;
+uint32_t const SIZE        = -1;
 
 struct Inode {
-	char fileName[255]; //max 255bytes (FileName + 24bytes) (2 Für die Länge)
-	uint32_t size;	//4byte
-	short gid;		//2byte
-	short uid;		//2byte
-	short mode;		//2byte
-	uint32_t atim;	//4byte
-	uint32_t mtim;	//4byte
-	uint32_t ctim;	//4byte
+	char fileName[255]; // 255 max bytes (FileName + 24bytes) (2 Für die Länge)
+	uint32_t size;		// 4 byte
+	short gid;			// 2 byte
+	short uid;			// 2 byte
+	short mode;			// 2 byte
+	uint32_t atim;		// 4 byte
+	uint32_t mtim;		// 4 byte
+	uint32_t ctim;		// 4 byte
 };
 
 struct Superblock {
-	uint32_t Groesse;
+	uint32_t Size;
 	uint32_t PointerFat;
 	uint32_t PointerNode;
 	uint32_t PointerData;
-	char Dateien;
+	char Files;
 };
 
-void getPath(char *arg, char* path);
+void getPath(char *arg, char *path);
 uint32_t findNextFreeBlock();
 void setFATBlockPointer(uint32_t blockPointer, uint32_t nextPointer);
 uint32_t readFAT(uint32_t blockPointer);
-void fillBlocks(uint32_t from, uint32_t to);
+void fillBlocks(uint32_t startBlockIndex, uint32_t endBlockIndex);
 int copyFile(char* path);
 void createInode(char* path, uint32_t blockPointer);
 void writeInode(char* data);
@@ -72,16 +73,21 @@ int sumRootPointer();
 bool checkDuplicate(char* path);
 void writeRootPointer(uint32_t newPointer);
 
+/**
+ * Determines the full path of a given file which must be inside the current working directory.
+ *
+ * @param arg The name of a file inside the current working directory.
+ * @param path out The absolute path of the file.
+ */
+void getPath(char *arg, char *path){
+	char currentWorkingDirectory[1024];
 
-void getPath(char *arg, char* path){
-	char cwd[1024];
-	if (getcwd(cwd, sizeof(cwd)) == NULL)
+	// Get working directory and check if it couldn't be determined or SIZE was too small
+	if (getcwd(currentWorkingDirectory, sizeof(currentWorkingDirectory)) == NULL)
 	   return;
 
-	string path1 = cwd;
-	string path2 = arg;
-	string path3 = path1 + "/" + path2;
-	strncpy(path, path3.c_str(), 1024);
+	string absolutePath = (string)currentWorkingDirectory + "/" + (string)arg;
+	strncpy(path, absolutePath.c_str(), 1024);
 }
 
 uint32_t readFAT(uint32_t blockPointer){
@@ -106,14 +112,14 @@ void addDateiSb(){
 	char copy[512];
 	Superblock* sb= (Superblock*) copy;
 	bd->read(0,(char*)sb);
-	sb->Dateien = sb->Dateien+1;
+	sb->Files = sb->Files+1;
 	bd->write(0,(char*)sb);
 }
 
 void writeSb() {
 	char copy[512];
 	Superblock* sb = (Superblock*) copy;
-	sb->Groesse = GROESSE;
+	sb->Size = SIZE;
 	sb->PointerData = DATA_START;
 	sb->PointerFat = FAT_START;
 	sb->PointerNode = NODE_START;
@@ -151,9 +157,13 @@ void writeRootPointer(uint32_t newPointer) {
 		}
 	}
 }
-//Position: -1 = Ersten Treffer
-//Position: PointerPosition, es wird die NÄCHSTE zurückgegeben	(damit lücken übersprungen werden, wenn man z.B. etwas löscht)
-//Rückgabe: 0 = war der letzte Pointer sonst gibt es immer den nächsten Pointer
+
+// TODO Chris: Improve description...
+/**
+ * @param position -1 = Erster Treffer
+ *                 PointerPosition = Es wird die NÄCHSTE zurückgegeben (damit lücken übersprungen werden, wenn man z.B. etwas löscht)
+ * @return 0 = war der letzte Pointer sonst gibt es immer den nächsten Pointer
+ */
 uint32_t readNextRootPointer(uint32_t position){
 	char read[512];
 
@@ -171,13 +181,19 @@ uint32_t readNextRootPointer(uint32_t position){
 	return 0;
 }
 
-void fillBlocks(uint32_t from, uint32_t to){
-	char fill[512];
-	for (int i = 0; i < 512; i++)
-		fill[i] = 0; //255 = 1
+/**
+ * Fill the specified blocks of the BlockDevice with 0.
+ *
+ * @param startBlockIndex Index of the first block to fill.
+ * @param endBlockIndex Index of the last block to fill.
+ */
+void fillBlocks(uint32_t startBlockIndex, uint32_t endBlockIndex){
+	char rawBlock[BLOCK_SIZE];
+	for (int i = 0; i < BLOCK_SIZE; i++)
+		rawBlock[i] = 0; // 255 = 1
 
-	for (uint32_t i = from; i < to; i++)
-		bd->write(i, fill);
+	for (uint32_t i = startBlockIndex; i < endBlockIndex; i++)
+		bd->write(i, rawBlock);
 }
 
 bool checkDuplicate(char* path) {
@@ -334,25 +350,36 @@ uint32_t findNextFreeBlock(){
 	return 0; //RETURN ERROR: FileSystem FULL!
 }
 
+/**
+ * Initial main method of MyFS mkfs.
+ *
+ * @param argc The argument count as integer.
+ * @param argv All passed arguments as string array.
+ * @return 0 on success, nonzero on failure.
+ */
 int main(int argc, char *argv[]) {
 
-	if (argc < 3)
-		printf("using: mkfs.myfs containerdatei [input-datei ...]\n");
+	// Validate arguments
+	if (argc < 3) {
+		fprintf(stderr, "Usage: %s containerfile inputfile1 [inputfile2 ...]\n", argv[0]);
+		return (EXIT_FAILURE);
+	}
 
-	char path[1024];
-	getPath(argv[1], path);
+	char containerFilePath[1024];
+	getPath(argv[1], containerFilePath);
 
-	bd = new BlockDevice(512);
-	bd->create(path);
+	// Initialize block device
+	bd = new BlockDevice(BLOCK_SIZE);
+	bd->create(containerFilePath);
 	fillBlocks(0, 16);
 	writeSb();
 
+	// Copy input files into our container file
 	for (int i = 2; i < argc; i++) {
 		if (copyFile(argv[i]) == -1)
 			cout << "Duplicate file name!" << endl;
 	}
 
-
 	bd->close();
-	return 0;
+	return (EXIT_SUCCESS);
 }
