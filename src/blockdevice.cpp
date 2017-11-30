@@ -124,8 +124,8 @@ int BlockDevice::read(u_int32_t blockNo, char *buffer) {
  * @return Always 0.
  */
 int BlockDevice::write(u_int32_t blockNo, char *buffer) {
-	seekto(this->contFile, blockNo);
-	writebuf(this->contFile, buffer, this->blockSize);
+    seekto(this->contFile, blockNo);
+    writebuf(this->contFile, buffer, this->blockSize);
     return 0;
 }
 

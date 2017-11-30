@@ -42,22 +42,22 @@ uint32_t const MAX_UINT    = -1;
 uint32_t const SIZE        = -1;
 
 struct Inode {
-	char fileName[255]; // 255 max bytes (FileName + 24bytes) (2 Für die Länge)
-	uint32_t size;		// 4 byte
-	short gid;			// 2 byte
-	short uid;			// 2 byte
-	short mode;			// 2 byte
-	uint32_t atim;		// 4 byte
-	uint32_t mtim;		// 4 byte
-	uint32_t ctim;		// 4 byte
+    char fileName[255]; // 255 max bytes (FileName + 24bytes) (2 Für die Länge)
+    uint32_t size;      // 4 byte
+    short gid;          // 2 byte
+    short uid;          // 2 byte
+    short mode;         // 2 byte
+    uint32_t atim;      // 4 byte
+    uint32_t mtim;      // 4 byte
+    uint32_t ctim;      // 4 byte
 };
 
 struct Superblock {
-	uint32_t Size;
-	uint32_t PointerFat;
-	uint32_t PointerNode;
-	uint32_t PointerData;
-	char Files;
+    uint32_t Size;
+    uint32_t PointerFat;
+    uint32_t PointerNode;
+    uint32_t PointerData;
+    char Files;
 };
 
 void getPath(char *arg, char *path);
@@ -80,82 +80,82 @@ void writeRootPointer(uint32_t newPointer);
  * @param path out The absolute path of the file.
  */
 void getPath(char *arg, char *path){
-	char currentWorkingDirectory[1024];
+    char currentWorkingDirectory[1024];
 
-	// Get working directory and check if it couldn't be determined or SIZE was too small
-	if (getcwd(currentWorkingDirectory, sizeof(currentWorkingDirectory)) == NULL)
-	   return;
+    // Get working directory and check if it couldn't be determined or SIZE was too small
+    if (getcwd(currentWorkingDirectory, sizeof(currentWorkingDirectory)) == NULL)
+       return;
 
-	string absolutePath = (string)currentWorkingDirectory + "/" + (string)arg;
-	strncpy(path, absolutePath.c_str(), 1024);
+    string absolutePath = (string)currentWorkingDirectory + "/" + (string)arg;
+    strncpy(path, absolutePath.c_str(), 1024);
 }
 
 uint32_t readFAT(uint32_t blockPointer){
-	blockPointer -= DATA_START;
-	int offsetBlockNR = blockPointer / 128;
-	int offsetBlockPos = blockPointer % 128;
+    blockPointer -= DATA_START;
+    int offsetBlockNR = blockPointer / 128;
+    int offsetBlockPos = blockPointer % 128;
 
-	char read[512];
-	bd->read(FAT_START + offsetBlockNR, read); //FAT Start + Offset des Blocks
+    char read[512];
+    bd->read(FAT_START + offsetBlockNR, read); //FAT Start + Offset des Blocks
 
-	uint32_t ergebnis = 0;
-	uint32_t k = 2147483648;
-	for (int i = (4 * offsetBlockPos); i < (4 * (offsetBlockPos + 1)); i++){
-		ergebnis += ((unsigned short)read[i] / 65535) * k;
-		k/=2;
-	}
+    uint32_t ergebnis = 0;
+    uint32_t k = 2147483648;
+    for (int i = (4 * offsetBlockPos); i < (4 * (offsetBlockPos + 1)); i++){
+        ergebnis += ((unsigned short)read[i] / 65535) * k;
+        k/=2;
+    }
 
-	return ergebnis;
+    return ergebnis;
 }
 
 void addDateiSb(){
-	char copy[512];
-	Superblock* sb= (Superblock*) copy;
-	bd->read(0,(char*)sb);
-	sb->Files = sb->Files+1;
-	bd->write(0,(char*)sb);
+    char copy[512];
+    Superblock* sb= (Superblock*) copy;
+    bd->read(0,(char*)sb);
+    sb->Files = sb->Files+1;
+    bd->write(0,(char*)sb);
 }
 
 void writeSb() {
-	char copy[512];
-	Superblock* sb = (Superblock*) copy;
-	sb->Size = SIZE;
-	sb->PointerData = DATA_START;
-	sb->PointerFat = FAT_START;
-	sb->PointerNode = NODE_START;
+    char copy[512];
+    Superblock* sb = (Superblock*) copy;
+    sb->Size = SIZE;
+    sb->PointerData = DATA_START;
+    sb->PointerFat = FAT_START;
+    sb->PointerNode = NODE_START;
 
-	bd->write(0, (char*)sb);
+    bd->write(0, (char*)sb);
 }
 
 int sumRootPointer(){
-	char read[512];
-	int sum = 0;
+    char read[512];
+    int sum = 0;
 
-	bd->read(ROOT_BLOCK, read);
+    bd->read(ROOT_BLOCK, read);
 
-	for (int i = 0; i < 512; i+=4) {
-		uint32_t pointer = read[i] << 24 | read[i+1] << 16 | read[i+2] << 8 | read[i+3];
-		if (pointer != 0)
-			sum++;
-	}
-	return sum;
+    for (int i = 0; i < 512; i+=4) {
+        uint32_t pointer = read[i] << 24 | read[i+1] << 16 | read[i+2] << 8 | read[i+3];
+        if (pointer != 0)
+            sum++;
+    }
+    return sum;
 }
 
 void writeRootPointer(uint32_t newPointer) {
-	char read[512];
+    char read[512];
 
-	bd->read(ROOT_BLOCK, read);
-	for (int i = 0; i < 512; i+=4) {
-		uint32_t pointer = read[i] << 24 | read[i+1] << 16 | read[i+2] << 8 | read[i+3];
-		if (pointer == 0){
-			char data[4];
-			memcpy(data, &newPointer, 4);
-			for (int k = 0; k < 4; k++)	//damit die zahlen im normalen Style sind 0011 = 3 und nicht 1100 = 3
-				read[i+3-k] = data[k];
-			bd->write(ROOT_BLOCK, read);
-			return;
-		}
-	}
+    bd->read(ROOT_BLOCK, read);
+    for (int i = 0; i < 512; i+=4) {
+        uint32_t pointer = read[i] << 24 | read[i+1] << 16 | read[i+2] << 8 | read[i+3];
+        if (pointer == 0){
+            char data[4];
+            memcpy(data, &newPointer, 4);
+            for (int k = 0; k < 4; k++) //damit die zahlen im normalen Style sind 0011 = 3 und nicht 1100 = 3
+                read[i+3-k] = data[k];
+            bd->write(ROOT_BLOCK, read);
+            return;
+        }
+    }
 }
 
 // TODO Chris: Improve description...
@@ -165,20 +165,20 @@ void writeRootPointer(uint32_t newPointer) {
  * @return 0 = war der letzte Pointer sonst gibt es immer den nächsten Pointer
  */
 uint32_t readNextRootPointer(uint32_t position){
-	char read[512];
+    char read[512];
 
-	bd->read(ROOT_BLOCK, read);
-	for (int i = 0; i < 512; i+=4) {
-		uint32_t pointer = read[i] << 24 | read[i+1] << 16 | read[i+2] << 8 | read[i+3];
+    bd->read(ROOT_BLOCK, read);
+    for (int i = 0; i < 512; i+=4) {
+        uint32_t pointer = read[i] << 24 | read[i+1] << 16 | read[i+2] << 8 | read[i+3];
 
-		if (pointer != 0 && position == MAX_UINT)
-			return pointer;
+        if (pointer != 0 && position == MAX_UINT)
+            return pointer;
 
-		if (pointer == position)
-			position = MAX_UINT;
-	}
+        if (pointer == position)
+            position = MAX_UINT;
+    }
 
-	return 0;
+    return 0;
 }
 
 /**
@@ -188,166 +188,166 @@ uint32_t readNextRootPointer(uint32_t position){
  * @param endBlockIndex Index of the last block to fill.
  */
 void fillBlocks(uint32_t startBlockIndex, uint32_t endBlockIndex){
-	char rawBlock[BLOCK_SIZE];
-	for (int i = 0; i < BLOCK_SIZE; i++)
-		rawBlock[i] = 0; // 255 = 1
+    char rawBlock[BLOCK_SIZE];
+    for (int i = 0; i < BLOCK_SIZE; i++)
+        rawBlock[i] = 0; // 255 = 1
 
-	for (uint32_t i = startBlockIndex; i < endBlockIndex; i++)
-		bd->write(i, rawBlock);
+    for (uint32_t i = startBlockIndex; i < endBlockIndex; i++)
+        bd->write(i, rawBlock);
 }
 
 bool checkDuplicate(char* path) {
-	Inode node;
-	uint32_t position = MAX_UINT;
-	char* newFileName = strtok(path, "/");
-	char fileName[255];
+    Inode node;
+    uint32_t position = MAX_UINT;
+    char* newFileName = strtok(path, "/");
+    char fileName[255];
 
-	strcpy(fileName, newFileName);
+    strcpy(fileName, newFileName);
 
-	if (sumRootPointer() == 0)	//Die erste Datei kann kein duplicate sein.
-		return false;
+    if (sumRootPointer() == 0) //Die erste Datei kann kein duplicate sein.
+        return false;
 
-	cout << fileName << endl;
+    cout << fileName << endl;
 
-	while((position = readNextRootPointer(position)) != 0){
-		bd->read(position, (char*)&node);
-		cout << fileName << " : " << node.fileName << endl;
-		if (fileName == node.fileName)
-			return true;
-	}
+    while((position = readNextRootPointer(position)) != 0){
+        bd->read(position, (char*)&node);
+        cout << fileName << " : " << node.fileName << endl;
+        if (fileName == node.fileName)
+            return true;
+    }
 
-	return false;
+    return false;
 }
 
 int copyFile(char* path){
-	if (checkDuplicate(path))
-		return -1;
+    if (checkDuplicate(path))
+        return -1;
 
-	FILE *f = fopen(path, "rb");
-	fseek(f, 0, SEEK_END);
-	long fsize = ftell(f);
-	fseek(f, 0, SEEK_SET);
+    FILE *f = fopen(path, "rb");
+    fseek(f, 0, SEEK_END);
+    long fsize = ftell(f);
+    fseek(f, 0, SEEK_SET);
 
-	char *string = (char *)malloc(fsize + 1);
-	fread(string, fsize, 1, f);
-	fclose(f);
+    char *string = (char *)malloc(fsize + 1);
+    fread(string, fsize, 1, f);
+    fclose(f);
 
-	int position = 0;
-	uint32_t blockPointer = findNextFreeBlock();
-	uint32_t oldPointer;
-	createInode(path, blockPointer);
-	char data[512];
-	if (strlen(string) > 512) { //wir benötigen mehr als nur ein Block
-		while((unsigned)(position * 512) < strlen(string)){
-			for (int i = 0; i < 512; i++)	//füllen der Daten zum schreiben
-				data[i] = string[(position * 512) + i];
+    int position = 0;
+    uint32_t blockPointer = findNextFreeBlock();
+    uint32_t oldPointer;
+    createInode(path, blockPointer);
+    char data[512];
+    if (strlen(string) > 512) { //wir benötigen mehr als nur ein Block
+        while((unsigned)(position * 512) < strlen(string)){
+            for (int i = 0; i < 512; i++) //füllen der Daten zum schreiben
+                data[i] = string[(position * 512) + i];
 
-			bd->write(blockPointer, data);
-			setFATBlockPointer(blockPointer, MAX_UINT); //block auf belegt setzen
-			oldPointer = blockPointer;
+            bd->write(blockPointer, data);
+            setFATBlockPointer(blockPointer, MAX_UINT); //block auf belegt setzen
+            oldPointer = blockPointer;
 
-			blockPointer = findNextFreeBlock();	//neuen Block holen
-			setFATBlockPointer(oldPointer, blockPointer);	//verweiß setzen
-			position++;
-		}
-	} else {	//izi. nur ein Block
-		bd->write(blockPointer, string);
-		setFATBlockPointer(blockPointer, MAX_UINT);
-	}
-	return 0;
+            blockPointer = findNextFreeBlock(); //neuen Block holen
+            setFATBlockPointer(oldPointer, blockPointer);    //verweiß setzen
+            position++;
+        }
+    } else {    //izi. nur ein Block
+        bd->write(blockPointer, string);
+        setFATBlockPointer(blockPointer, MAX_UINT);
+    }
+    return 0;
 }
 
 void createInode(char* path, uint32_t blockPointer) {
-	char copy[512];	//Max. größe 512 und auch immer 512 groß
-	Inode* node = (Inode*)copy;
-	char* chars_array = strtok(path, "/");
+    char copy[512]; //Max. größe 512 und auch immer 512 groß
+    Inode* node = (Inode*)copy;
+    char* chars_array = strtok(path, "/");
 
-	struct stat meta;
-	stat(path, &meta);
+    struct stat meta;
+    stat(path, &meta);
 
-	strcpy(node->fileName, chars_array);
-	node->size = meta.st_size;
-	node->gid = meta.st_gid;
-	node->uid = meta.st_uid;
-	node->mode = meta.st_mode;
+    strcpy(node->fileName, chars_array);
+    node->size = meta.st_size;
+    node->gid = meta.st_gid;
+    node->uid = meta.st_uid;
+    node->mode = meta.st_mode;
 
-	node->atim = meta.st_atim.tv_sec;
-	node->mtim = meta.st_mtim.tv_sec;
-	node->ctim = meta.st_ctim.tv_sec;
+    node->atim = meta.st_atim.tv_sec;
+    node->mtim = meta.st_mtim.tv_sec;
+    node->ctim = meta.st_ctim.tv_sec;
 
     writeInode((char*)node);
 }
 
 void writeInode(char* data) {
-	char read[512];
+    char read[512];
 
-	for (uint32_t i = NODE_START; i < NODE_ENDE; i++){
-		bd->read(i, read);
-		if (read[0] == 0) {	//Leerer Block
-			bd->write(i, data);
-			writeRootPointer(i);
-			return;
-		}
-	}
+    for (uint32_t i = NODE_START; i < NODE_ENDE; i++){
+        bd->read(i, read);
+        if (read[0] == 0) { //Leerer Block
+            bd->write(i, data);
+            writeRootPointer(i);
+            return;
+        }
+    }
 }
 
 Inode readNode(uint32_t nodePointer){
-	Inode node;
-	uint32_t currentPointer = 0;
+    Inode node;
+    uint32_t currentPointer = 0;
 
-	for (unsigned int i = NODE_START; i < NODE_ENDE; i++){
-		if (nodePointer == currentPointer) {	//Richtige Node
-			bd->read(i, (char*)&node);
-			return node;
-		}
-		currentPointer++;
-	}
+    for (unsigned int i = NODE_START; i < NODE_ENDE; i++){
+        if (nodePointer == currentPointer) { //Richtige Node
+            bd->read(i, (char*)&node);
+            return node;
+        }
+        currentPointer++;
+    }
 
-	return node;
+    return node;
 }
 
 void setFATBlockPointer(uint32_t blockPointer, uint32_t nextPointer){ //0x00000000 = FREI | 0xFFFFFFFF = BELEGT
-	blockPointer -= DATA_START;
-	int offsetBlockNR = blockPointer / 128;
-	int offsetBlockPos = blockPointer % 128;
+    blockPointer -= DATA_START;
+    int offsetBlockNR = blockPointer / 128;
+    int offsetBlockPos = blockPointer % 128;
 
-	char read[512];
-	bd->read(FAT_START + offsetBlockNR, read);
+    char read[512];
+    bd->read(FAT_START + offsetBlockNR, read);
 
-	char data[4];
-	if (nextPointer != 0)
-		memcpy(data, &nextPointer,sizeof(uint32_t));
-	else {
-		for (int i = 0; i < 4; i++)
-			data[i] = 0;
-	}
+    char data[4];
+    if (nextPointer != 0)
+        memcpy(data, &nextPointer,sizeof(uint32_t));
+    else {
+        for (int i = 0; i < 4; i++)
+            data[i] = 0;
+    }
 
-	int k = 0;
-	for (int i = (4 * offsetBlockPos); i < (4 * (offsetBlockPos + 1)); i++){
-		read[i] = data[k];
-		k++;
-	}
+    int k = 0;
+    for (int i = (4 * offsetBlockPos); i < (4 * (offsetBlockPos + 1)); i++){
+        read[i] = data[k];
+        k++;
+    }
 
-	bd->write(FAT_START + offsetBlockNR, read);
+    bd->write(FAT_START + offsetBlockNR, read);
 }
 
 uint32_t findNextFreeBlock(){
-	uint32_t ergebnis;
-	char read[512];
-	for(uint32_t i = FAT_START; i < FAT_ENDE; i++){
-		bd->read(i, read);
-		for (int x = 0; x < 128; x++){	//Max. ints in einem Block
-			ergebnis = 0;
-			for(int m = (4 * x); m < (4 * (x+1)); m++){	//Bauen der Zahl
-				ergebnis <<= 8;
-				ergebnis |= read[m];
-			}
-			if (ergebnis == 0)//4294967295)	//Wir einigten uns darauf das 0xFFFFFFFF = leer bedeutet
-				return ((i - FAT_START) * 128) + x + DATA_START; //Alles damit wir in die Datenblöcke kommen
-		}
-	}
-	cout << "wops, something went wrong!" << endl;
-	return 0; //RETURN ERROR: FileSystem FULL!
+    uint32_t ergebnis;
+    char read[512];
+    for(uint32_t i = FAT_START; i < FAT_ENDE; i++){
+        bd->read(i, read);
+        for (int x = 0; x < 128; x++){ //Max. ints in einem Block
+            ergebnis = 0;
+            for(int m = (4 * x); m < (4 * (x+1)); m++){ //Bauen der Zahl
+                ergebnis <<= 8;
+                ergebnis |= read[m];
+            }
+            if (ergebnis == 0)//4294967295) //Wir einigten uns darauf das 0xFFFFFFFF = leer bedeutet
+                return ((i - FAT_START) * 128) + x + DATA_START; //Alles damit wir in die Datenblöcke kommen
+        }
+    }
+    cout << "wops, something went wrong!" << endl;
+    return 0; //RETURN ERROR: FileSystem FULL!
 }
 
 /**
@@ -359,27 +359,27 @@ uint32_t findNextFreeBlock(){
  */
 int main(int argc, char *argv[]) {
 
-	// Validate arguments
-	if (argc < 3) {
-		fprintf(stderr, "Usage: %s containerfile inputfile1 [inputfile2 ...]\n", argv[0]);
-		return (EXIT_FAILURE);
-	}
+    // Validate arguments
+    if (argc < 3) {
+        fprintf(stderr, "Usage: %s containerfile inputfile1 [inputfile2 ...]\n", argv[0]);
+        return (EXIT_FAILURE);
+    }
 
-	char containerFilePath[1024];
-	getPath(argv[1], containerFilePath);
+    char containerFilePath[1024];
+    getPath(argv[1], containerFilePath);
 
-	// Initialize block device
-	bd = new BlockDevice(BLOCK_SIZE);
-	bd->create(containerFilePath);
-	fillBlocks(0, 16);
-	writeSb();
+    // Initialize block device
+    bd = new BlockDevice(BLOCK_SIZE);
+    bd->create(containerFilePath);
+    fillBlocks(0, 16);
+    writeSb();
 
-	// Copy input files into our container file
-	for (int i = 2; i < argc; i++) {
-		if (copyFile(argv[i]) == -1)
-			cout << "Duplicate file name!" << endl;
-	}
+    // Copy input files into our container file
+    for (int i = 2; i < argc; i++) {
+        if (copyFile(argv[i]) == -1)
+            cout << "Duplicate file name!" << endl;
+    }
 
-	bd->close();
-	return (EXIT_SUCCESS);
+    bd->close();
+    return (EXIT_SUCCESS);
 }
