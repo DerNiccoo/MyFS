@@ -6,9 +6,6 @@
 //  Copyright © 2017 Oliver Waldhorst. All rights reserved.
 //
 
-#include "myfs.h"
-#include "blockdevice.h"
-#include "macros.h"
 #include <unistd.h>
 #include <errno.h>
 #include <stdio.h>
@@ -23,33 +20,35 @@
 #include <string>
 #include <iostream>
 
+#include "myfs.h"
+#include "blockdevice.h"
+#include "macros.h"
+
 using namespace std;
 
-static int NAME_LENGTH     = 255; // TODO Chris: Replace all hard coded values with their equivalent...
-static int BLOCK_SIZE      = 512;
-static int NUM_DIR_ENTRIES =  64;
-static int NUM_OPEN_FILES  =  64;
+static int const NAME_LENGTH      = 255;
+static int const BLOCK_SIZE       = 512;
+static int const NUM_DIR_ENTRIES  =  64;
+static int const NUM_OPEN_FILES   =  64;
 
-BlockDevice* bd;
-
-uint32_t const FAT_ENDE    =  3;
-uint32_t const FAT_START   =  1;
-uint32_t const NODE_START  =  4;
-uint32_t const NODE_ENDE   =  9;
-uint32_t const ROOT_BLOCK  = 10;
-uint32_t const DATA_START  = 11;
-uint32_t const MAX_UINT    = -1;
-uint32_t const SIZE        = -1;
+static uint32_t const FAT_ENDE    =  3;
+static uint32_t const FAT_START   =  1;
+static uint32_t const NODE_START  =  4;
+static uint32_t const NODE_ENDE   =  9;
+static uint32_t const ROOT_BLOCK  = 10;
+static uint32_t const DATA_START  = 11;
+static uint32_t const MAX_UINT    = -1;
+static uint32_t const SIZE        = -1;
 
 struct Inode {
-    char fileName[255]; // 255 max bytes (FileName + 24bytes) (2 Für die Länge)
-    uint32_t size;      // 4 byte
-    short gid;          // 2 byte
-    short uid;          // 2 byte
-    short mode;         // 2 byte
-    uint32_t atim;      // 4 byte
-    uint32_t mtim;      // 4 byte
-    uint32_t ctim;      // 4 byte
+    char fileName[NAME_LENGTH]; // max 255 bytes (FileName + 24 bytes) (2 for the length)
+    uint32_t size; // 4 byte
+    short gid;     // 2 byte
+    short uid;     // 2 byte
+    short mode;    // 2 byte
+    uint32_t atim; // 4 byte
+    uint32_t mtim; // 4 byte
+    uint32_t ctim; // 4 byte
 };
 
 struct Superblock {
@@ -73,6 +72,8 @@ int sumRootPointer();
 bool checkDuplicate(char* path);
 void writeRootPointer(uint32_t newPointer);
 
+BlockDevice* bd;
+
 /**
  * Determines the full path of a given file which must be inside the current working directory.
  *
@@ -95,7 +96,7 @@ uint32_t readFAT(uint32_t blockPointer){
     int offsetBlockNR = blockPointer / 128;
     int offsetBlockPos = blockPointer % 128;
 
-    char read[512];
+    char read[BLOCK_SIZE];
     bd->read(FAT_START + offsetBlockNR, read); //FAT Start + Offset des Blocks
 
     uint32_t ergebnis = 0;
@@ -109,7 +110,7 @@ uint32_t readFAT(uint32_t blockPointer){
 }
 
 void addDateiSb(){
-    char copy[512];
+    char copy[BLOCK_SIZE];
     Superblock* sb= (Superblock*) copy;
     bd->read(0,(char*)sb);
     sb->Files = sb->Files+1;
@@ -117,7 +118,7 @@ void addDateiSb(){
 }
 
 void writeSb() {
-    char copy[512];
+    char copy[BLOCK_SIZE];
     Superblock* sb = (Superblock*) copy;
     sb->Size = SIZE;
     sb->PointerData = DATA_START;
@@ -128,12 +129,12 @@ void writeSb() {
 }
 
 int sumRootPointer(){
-    char read[512];
+    char read[BLOCK_SIZE];
     int sum = 0;
 
     bd->read(ROOT_BLOCK, read);
 
-    for (int i = 0; i < 512; i+=4) {
+    for (int i = 0; i < BLOCK_SIZE; i+=4) {
         uint32_t pointer = read[i] << 24 | read[i+1] << 16 | read[i+2] << 8 | read[i+3];
         if (pointer != 0)
             sum++;
@@ -142,10 +143,10 @@ int sumRootPointer(){
 }
 
 void writeRootPointer(uint32_t newPointer) {
-    char read[512];
+    char read[BLOCK_SIZE];
 
     bd->read(ROOT_BLOCK, read);
-    for (int i = 0; i < 512; i+=4) {
+    for (int i = 0; i < BLOCK_SIZE; i+=4) {
         uint32_t pointer = read[i] << 24 | read[i+1] << 16 | read[i+2] << 8 | read[i+3];
         if (pointer == 0){
             char data[4];
@@ -165,10 +166,10 @@ void writeRootPointer(uint32_t newPointer) {
  * @return 0 = war der letzte Pointer sonst gibt es immer den nächsten Pointer
  */
 uint32_t readNextRootPointer(uint32_t position){
-    char read[512];
+    char read[BLOCK_SIZE];
 
     bd->read(ROOT_BLOCK, read);
-    for (int i = 0; i < 512; i+=4) {
+    for (int i = 0; i < BLOCK_SIZE; i+=4) {
         uint32_t pointer = read[i] << 24 | read[i+1] << 16 | read[i+2] << 8 | read[i+3];
 
         if (pointer != 0 && position == MAX_UINT)
@@ -200,7 +201,7 @@ bool checkDuplicate(char* path) {
     Inode node;
     uint32_t position = MAX_UINT;
     char* newFileName = strtok(path, "/");
-    char fileName[255];
+    char fileName[NAME_LENGTH];
 
     strcpy(fileName, newFileName);
 
@@ -236,11 +237,11 @@ int copyFile(char* path){
     uint32_t blockPointer = findNextFreeBlock();
     uint32_t oldPointer;
     createInode(path, blockPointer);
-    char data[512];
-    if (strlen(string) > 512) { //wir benötigen mehr als nur ein Block
-        while((unsigned)(position * 512) < strlen(string)){
-            for (int i = 0; i < 512; i++) //füllen der Daten zum schreiben
-                data[i] = string[(position * 512) + i];
+    char data[BLOCK_SIZE];
+    if (strlen(string) > BLOCK_SIZE) { //wir benötigen mehr als nur ein Block
+        while((unsigned)(position * BLOCK_SIZE) < strlen(string)){
+            for (int i = 0; i < BLOCK_SIZE; i++) //füllen der Daten zum schreiben
+                data[i] = string[(position * BLOCK_SIZE) + i];
 
             bd->write(blockPointer, data);
             setFATBlockPointer(blockPointer, MAX_UINT); //block auf belegt setzen
@@ -258,7 +259,7 @@ int copyFile(char* path){
 }
 
 void createInode(char* path, uint32_t blockPointer) {
-    char copy[512]; //Max. größe 512 und auch immer 512 groß
+    char copy[BLOCK_SIZE]; //Max. größe 512 und auch immer 512 groß
     Inode* node = (Inode*)copy;
     char* chars_array = strtok(path, "/");
 
@@ -279,7 +280,7 @@ void createInode(char* path, uint32_t blockPointer) {
 }
 
 void writeInode(char* data) {
-    char read[512];
+    char read[BLOCK_SIZE];
 
     for (uint32_t i = NODE_START; i < NODE_ENDE; i++){
         bd->read(i, read);
@@ -311,7 +312,7 @@ void setFATBlockPointer(uint32_t blockPointer, uint32_t nextPointer){ //0x000000
     int offsetBlockNR = blockPointer / 128;
     int offsetBlockPos = blockPointer % 128;
 
-    char read[512];
+    char read[BLOCK_SIZE];
     bd->read(FAT_START + offsetBlockNR, read);
 
     char data[4];
@@ -333,7 +334,7 @@ void setFATBlockPointer(uint32_t blockPointer, uint32_t nextPointer){ //0x000000
 
 uint32_t findNextFreeBlock(){
     uint32_t ergebnis;
-    char read[512];
+    char read[BLOCK_SIZE];
     for(uint32_t i = FAT_START; i < FAT_ENDE; i++){
         bd->read(i, read);
         for (int x = 0; x < 128; x++){ //Max. ints in einem Block
