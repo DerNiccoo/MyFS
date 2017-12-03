@@ -107,13 +107,13 @@ int MyFSMgr::ImportFile(char* path) {
     if (FileExists(path))
         return -1;
 
-    FILE* f = fopen(path, "rb");
+    FILE* f = fopen(path, "rb"); // Read binary file
     fseek(f, 0, SEEK_END);
     long fsize = ftell(f);
     fseek(f, 0, SEEK_SET);
 
-    char* string = (char*)malloc(fsize + 1);
-    fread(string, fsize, 1, f);
+    char* fileContent = (char*) malloc(fsize + 1);
+    fread(fileContent, fsize, 1, f);
     fclose(f);
 
     int position = 0;
@@ -124,21 +124,21 @@ int MyFSMgr::ImportFile(char* path) {
     uint32_t oldPointer;
     CreateInode(path, blockPointer);
     char data[BLOCK_SIZE];
-    if (strlen(string) > BLOCK_SIZE) { // Wir benötigen mehr als nur ein Block
-        while((unsigned)(position * BLOCK_SIZE) < strlen(string)) {
-            for (int i = 0; i < BLOCK_SIZE; i++) // Füllen der Daten zum schreiben
-                data[i] = string[(position * BLOCK_SIZE) + i];
+    if (strlen(fileContent) > BLOCK_SIZE) {         // Wir benötigen mehr als nur ein Block
+        while((unsigned)(position * BLOCK_SIZE) < strlen(fileContent)) {
+            for (int i = 0; i < BLOCK_SIZE; i++)    // Füllen der Daten zum schreiben
+                data[i] = fileContent[(position * BLOCK_SIZE) + i];
 
             _blockDevice->write(blockPointer, data);
-            SetFATBlockPointer(blockPointer, MAX_UINT); // Block auf belegt setzen
+            SetFATBlockPointer(blockPointer, MAX_UINT);   // Block auf belegt setzen
             oldPointer = blockPointer;
 
-            blockPointer = FindNextFreeBlock(); // Neuen Block holen
-            SetFATBlockPointer(oldPointer, blockPointer);    // Verweiß setzen
+            blockPointer = FindNextFreeBlock();           // Neuen Block holen
+            SetFATBlockPointer(oldPointer, blockPointer); // Verweiß setzen
             position++;
         }
-    } else {    // Izi. nur ein Block
-        _blockDevice->write(blockPointer, string);
+    } else { // Izi. nur ein Block
+        _blockDevice->write(blockPointer, fileContent);
         SetFATBlockPointer(blockPointer, MAX_UINT);
     }
     return 0;
@@ -177,15 +177,15 @@ uint32_t MyFSMgr::FindNextFreeBlock() {
  * @param path
  * @param blockPointer
  */
-void MyFSMgr::CreateInode(char* path, uint32_t blockPointer) {
+void MyFSMgr::CreateInode(char* path, uint32_t blockPointer) { // TODO Chris: blockPointer is not implemented.
     char copy[BLOCK_SIZE];                  // Max. size - is ALWAYS BLOCK_SIZE (512).
     Inode* node = (Inode*) copy;
-    char* chars_array = strtok(path, "/");
+    char* pathSegments = strtok(path, "/");
 
     struct stat meta;
     stat(path, &meta);
 
-    strcpy(node->fileName, chars_array);
+    strcpy(node->fileName, pathSegments);
     node->size = meta.st_size;
     node->gid = meta.st_gid;
     node->uid = meta.st_uid;
@@ -199,9 +199,9 @@ void MyFSMgr::CreateInode(char* path, uint32_t blockPointer) {
 }
 
 /**
- * TODO Chris: Fill
+ * Write the provided Inode to the first empty block.
  *
- * @param data
+ * @param node The Inode to be written.
  */
 void MyFSMgr::WriteInode(Inode* node) {
     char read[BLOCK_SIZE];
@@ -275,23 +275,23 @@ void MyFSMgr::WriteRootPointer(uint32_t newPointer) {
 }
 
 /**
- * TODO Chris: Fill
+ * Check if the provided file exists inside the BlockDevice.
  *
- * @param path
- * @return
+ * @param path The path of the file to check.
+ * @return True if the file does exist, otherwise false.
  */
 bool MyFSMgr::FileExists(char* path) {
     Inode node;
     uint32_t position = MAX_UINT;
-    char* newFileName = strtok(path, "/");
+    char* pathSegments = strtok(path, "/");
     char fileName[NAME_LENGTH];
 
-    strcpy(fileName, newFileName);
-
-    if (RootPointerCount() == 0) // Die erste Datei kann kein duplicate sein.
-        return false;
+    strcpy(fileName, pathSegments);
 
     cout << fileName << endl;
+
+    if (RootPointerCount() == 0) // The first file can't be a duplicate
+        return false;
 
     while((position = ReadNextRootPointer(position)) != 0){
 
@@ -316,8 +316,8 @@ int MyFSMgr::RootPointerCount() {
 
     _blockDevice->read(ROOT_BLOCK, read);
 
-    for (int i = 0; i < BLOCK_SIZE; i+=4) {
-        uint32_t pointer = read[i] << 24 | read[i+1] << 16 | read[i+2] << 8 | read[i+3];
+    for (int i = 0; i < BLOCK_SIZE; i += 4) {
+        uint32_t pointer = read[i] << 24 | read[i + 1] << 16 | read[i + 2] << 8 | read[i + 3];
         if (pointer != 0)
             sum++;
     }

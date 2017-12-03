@@ -74,9 +74,8 @@ int main(int argc, char *argv[]) {
                 
         // Adjust arguments
         argv+= 2; argc-= 2;
-    }
-    else {
-        fprintf(stderr, "Usage: %s containerfile logfile mountpoint\n", argv[0]);
+    } else {
+        fprintf(stderr, "Usage: %s containerfile.bin logfile mountpoint\n", argv[0]);
         return (EXIT_FAILURE);
     }
     

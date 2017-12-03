@@ -8,20 +8,23 @@
 #ifndef MYFSMGR_H_
 #define MYFSMGR_H_
 
+// Global
 #include <iostream>
 #include <string>
 #include <sys/stat.h>
 
+// TODO Chris: Only used by GetAbsPath, should be removed.
 #include <unistd.h>
 #include <cstring>
 
+// Project specific
 #include "blockdevice.h"
 
 // Definitions
-static int const NAME_LENGTH      = 255;
-static int const BLOCK_SIZE       = 512;
-static int const NUM_DIR_ENTRIES  =  64;
-static int const NUM_OPEN_FILES   =  64;
+static int const NAME_LENGTH      = 255; // Max. length of a filename
+static int const BLOCK_SIZE       = 512; // Logical Block Size
+static int const NUM_DIR_ENTRIES  =  64; // Max. directory entries
+static int const NUM_OPEN_FILES   =  64; // Max. open files per MyFS container file
 
 static uint32_t const FAT_ENDE    =  3;
 static uint32_t const FAT_START   =  1;
@@ -41,7 +44,7 @@ struct Superblock {
 };
 
 struct Inode {
-    char fileName[NAME_LENGTH]; // max 255 bytes (FileName + 24 bytes) (2 for the length)
+    char fileName[NAME_LENGTH]; // Max. 255 bytes (FileName + 24 bytes) (2 for the length)
     uint32_t size;              // 4 byte
     short gid;                  // 2 byte
     short uid;                  // 2 byte

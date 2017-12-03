@@ -7,16 +7,7 @@
 //
 
 #include <errno.h>
-#include <stdio.h>
 #include <stdlib.h>
-#include <string>
-#include <iostream>
-#include <string.h>
-#include <cstring>
-#include <time.h>
-#include <bitset>
-#include <sstream>
-#include <string>
 #include <iostream>
 
 #include "myfs.h"
@@ -26,7 +17,9 @@
 
 using namespace std;
 
-// START # NOT IN USE
+// ############
+// # NOT IN USE
+
 uint32_t readFAT(uint32_t blockPointer);
 void addDateiSb();
 Inode readNode(uint32_t nodePointer);
@@ -39,33 +32,33 @@ uint32_t readFAT(uint32_t blockPointer) {
     int offsetBlockPos = blockPointer % 128;
 
     char read[BLOCK_SIZE];
-    _bd->read(FAT_START + offsetBlockNR, read); //FAT Start + Offset des Blocks
+    _bd->read(FAT_START + offsetBlockNR, read); // FAT Start + Offset des Blocks
 
-    uint32_t ergebnis = 0;
+    uint32_t result = 0;
     uint32_t k = 2147483648;
-    for (int i = (4 * offsetBlockPos); i < (4 * (offsetBlockPos + 1)); i++){
-        ergebnis += ((unsigned short)read[i] / 65535) * k;
+    for (int i = (4 * offsetBlockPos); i < (4 * (offsetBlockPos + 1)); i++) {
+        result += ((unsigned short) read[i] / 65535) * k;
         k/=2;
     }
 
-    return ergebnis;
+    return result;
 }
 
 void addDateiSb() {
     char copy[BLOCK_SIZE];
-    Superblock* sb= (Superblock*) copy;
-    _bd->read(0,(char*)sb);
+    Superblock* sb = (Superblock*) copy;
+    _bd->read(0, (char*) sb);
     sb->Files = sb->Files+1;
-    _bd->write(0,(char*)sb);
+    _bd->write(0, (char*) sb);
 }
 
 Inode readNode(uint32_t nodePointer) {
     Inode node;
     uint32_t currentPointer = 0;
 
-    for (unsigned int i = NODE_START; i < NODE_ENDE; i++){
-        if (nodePointer == currentPointer) { //Richtige Node
-            _bd->read(i, (char*)&node);
+    for (unsigned int i = NODE_START; i < NODE_ENDE; i++) {
+        if (nodePointer == currentPointer) { // Richtige Node
+            _bd->read(i, (char*) &node);
             return node;
         }
         currentPointer++;
@@ -73,7 +66,8 @@ Inode readNode(uint32_t nodePointer) {
 
     return node;
 }
-// END # NOT IN USE
+// # END
+// #####
 
 /**
  * Initial main method of MyFS mkfs.
@@ -99,6 +93,7 @@ int main(int argc, char* argv[]) {
     MyFSMgr::Instance()->WriteSuperBlock();
 
     // Copy input files into our container file
+    cout << "Copying files into our container file..." << endl;
     for (int i = 2; i < argc; i++) {
         if (MyFSMgr::Instance()->ImportFile(argv[i]) == -1)
             cout << "Duplicate file name!" << endl;
