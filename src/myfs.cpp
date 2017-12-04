@@ -6,26 +6,20 @@
 //  Copyright © 2017 Oliver Waldhorst. All rights reserved.
 //
 
+// Global
 #include <iostream>
 #include <cstring>
 #include <cmath>
 
+// Project specific
 #include "myfs.h"
 #include "myfs-info.h"
+
+using namespace std;
 
 MyFS* MyFS::_instance = NULL;
 
 #define RETURN_ERRNO(x) (x) == 0 ? 0 : -errno
-
-#define LOGF(fmt, ...) \
-do { fprintf(this->logFile, fmt "\n", __VA_ARGS__); } while (0)
-
-#define LOG(text) \
-do { fprintf(this->logFile, text "\n"); } while (0)
-
-#define LOGM() \
-do { fprintf(this->logFile, "%s:%d:%s()\n", __FILE__, \
-__LINE__, __func__); } while (0)
 
 MyFS* MyFS::Instance() {
     if(_instance == NULL) {
@@ -35,11 +29,9 @@ MyFS* MyFS::Instance() {
 }
 
 MyFS::MyFS() {
-    this->logFile= stderr;
 }
 
 MyFS::~MyFS() {
-    
 }
 
 int MyFS::fuseGetattr(const char *path, struct stat *statbuf) {
@@ -184,20 +176,11 @@ int MyFS::fuseFsyncdir(const char *path, int datasync, struct fuse_file_info *fi
 
 int MyFS::fuseInit(struct fuse_conn_info *conn) {
 
-    // Open logfile
-    this->logFile= fopen(((MyFsInfo *) fuse_get_context()->private_data)->logFile, "w");
-    if(this->logFile == NULL) {
-        fprintf(stderr, "ERROR: Cannot open logfile %s\n", ((MyFsInfo *) fuse_get_context()->private_data)->logFile);
+    // Open log file
+    if (Logger::GetLogger()->SetLogfile(((MyFsInfo*) fuse_get_context()->private_data)->logFile) == -1)
         return -1;
-    }
     
-    // Turn off log file buffering
-    setvbuf(this->logFile, NULL, _IOLBF, 0);
-
-    LOG("Starting logging...\n");
-    LOGM();
-        
-    // You can get the container file name here:
+    // Get the container file name here:
     LOGF("Container file name: %s", ((MyFsInfo*) fuse_get_context()->private_data)->contFile);
     
     // TODO: Enter your code here!

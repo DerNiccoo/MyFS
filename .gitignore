@@ -34,3 +34,4 @@
 # Repository specific
 *.myfs
 *.bin
+*.log

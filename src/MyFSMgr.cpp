@@ -7,7 +7,6 @@
 
 #include "MyFSMgr.h"
 
-
 using namespace std;
 
 MyFSMgr* MyFSMgr::_instance = NULL;
@@ -39,13 +38,12 @@ BlockDevice* MyFSMgr::BDInstance() {
 
 
 MyFSMgr::MyFSMgr() {
-    std::cout << "MyFSMgr constructor called" << endl;
-
+    Logger::GetLogger()->Log("MyFSMgr constructor called");
 }
-// TODO Chris: Never called/deleted?
 MyFSMgr::~MyFSMgr() {
-    std::cout << "MyFSMgr destructor called" << endl;
+    Logger::GetLogger()->Log("MyFSMgr destructor called");
 }
+
 
 /**
  * Determine the full path of a given file which must be inside the current working directory.

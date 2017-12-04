@@ -19,6 +19,7 @@
 
 // Project specific
 #include "blockdevice.h"
+#include "Logger.h"
 
 // Definitions
 static int const NAME_LENGTH      = 255; // Max. length of a filename
