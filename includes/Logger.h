@@ -21,13 +21,13 @@
  * Usage: LOGF("Testing: LOGF %d\n", argc);
  */
 #define LOGF(fmt, ...) \
-do { Logger::GetLogger()->LogF(fmt, __VA_ARGS__); } while (0)
+do { Logger::getLogger()->logF(fmt, __VA_ARGS__); } while (0)
 
 #define LOG(text) \
-do { Logger::GetLogger()->Log(text); } while (0)
+do { Logger::getLogger()->log(text); } while (0)
 
 #define LOGM() \
-do { Logger::GetLogger()->LogM(__FILE__, __LINE__, __func__); } while (0)
+do { Logger::getLogger()->logM(__FILE__, __LINE__, __func__); } while (0)
 
 
 /**
