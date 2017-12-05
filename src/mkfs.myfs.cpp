@@ -83,19 +83,19 @@ int main(int argc, char* argv[]) {
     }
 
     char containerFilePath[1024];
-    MyFSMgr::Instance()->GetAbsPath(argv[1], containerFilePath);
+    MyFSMgr::instance()->getAbsPath(argv[1], containerFilePath);
 
     LOG("Initialize block device...");
-    MyFSMgr::Instance()->BDInstance()->create(containerFilePath);
-    MyFSMgr::Instance()->FillBlocks(0, 16);
-    MyFSMgr::Instance()->WriteSuperBlock();
+    MyFSMgr::instance()->BDInstance()->create(containerFilePath);
+    MyFSMgr::instance()->fillBlocks(0, 16);
+    MyFSMgr::instance()->writeSuperBlock();
 
     LOG("Copying files into our container file...");
     for (int i = 2; i < argc; i++) {
-        if (MyFSMgr::Instance()->ImportFile(argv[i]) == -1)
+        if (MyFSMgr::instance()->importFile(argv[i]) == -1)
             LOG("Duplicate file name!");
     }
 
-    MyFSMgr::Instance()->BDInstance()->close();
+    MyFSMgr::instance()->BDInstance()->close();
     return (EXIT_SUCCESS);
 }

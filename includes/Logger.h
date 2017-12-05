@@ -42,16 +42,16 @@ private:
 
     FILE *logFile;
     bool timeBasedLogging;
-    void LogTimestamp();
+    void logTimestamp();
 
 public:
-    static Logger* GetLogger();
+    static Logger* getLogger();
 
-    int SetLogfile(char* logFilePath);
-    void SetTimeBasedLogging(bool enabled);
-    void Log(const char* text);
-    void LogM(const char* file, int line, const char* func);
-    void LogF(const char* format, ...);
+    int setLogfile(char* logFilePath);
+    void setTimeBasedLogging(bool enabled);
+    void log(const char* text);
+    void logM(const char* file, int line, const char* func);
+    void logF(const char* format, ...);
 };
 
 #endif /* LOGGER_H_ */

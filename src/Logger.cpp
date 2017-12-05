@@ -9,7 +9,7 @@
 
 Logger* Logger::_logger = NULL;
 
-Logger* Logger::GetLogger() {
+Logger* Logger::getLogger() {
     if(_logger == NULL) {
         _logger = new Logger();
     }
@@ -30,7 +30,7 @@ Logger::~Logger() {
  * @param logFilePath The path of the logfile.
  * @return 0 on success and -1 on error.
  */
-int Logger::SetLogfile(char* logFilePath) {
+int Logger::setLogfile(char* logFilePath) {
 
     // Open log file
     this->logFile = fopen(logFilePath, "a"); // Create new log file or append
@@ -42,7 +42,7 @@ int Logger::SetLogfile(char* logFilePath) {
 
     // Turn off log file buffering
     setvbuf(this->logFile, NULL, _IOLBF, 0);
-    LogF("―――――――――――――――――――――――――――――――――――――\nStarting logging to log file...\n");
+    logF("―――――――――――――――――――――――――――――――――――――\nStarting logging to log file...\n");
     LOGM();
     return 0;
 }
@@ -53,7 +53,7 @@ int Logger::SetLogfile(char* logFilePath) {
  *
  * @param enabled If true, a time stamp will be added, false disables the time stamp.
  */
-void Logger::SetTimeBasedLogging(bool enabled) {
+void Logger::setTimeBasedLogging(bool enabled) {
     this->timeBasedLogging = enabled;
 }
 
@@ -62,7 +62,7 @@ void Logger::SetTimeBasedLogging(bool enabled) {
  *
  * See https://stackoverflow.com/a/37658735/4300087
  */
-void Logger::LogTimestamp() {
+void Logger::logTimestamp() {
     struct timeval timeNow;
     struct tm* localTime;
     char buffer[30], usecBuffer[6];
@@ -85,9 +85,9 @@ void Logger::LogTimestamp() {
  *
  * @param text The text to log.
  */
-void Logger::Log(const char* text) {
+void Logger::log(const char* text) {
     if (this->timeBasedLogging)
-        LogTimestamp();
+        logTimestamp();
 
     fprintf(this->logFile, "%s\n", text);
 }
@@ -100,9 +100,9 @@ void Logger::Log(const char* text) {
  * @param line The line number.
  * @param func The name of the calling function.
  */
-void Logger::LogM(const char* file, int line, const char* func) {
+void Logger::logM(const char* file, int line, const char* func) {
     if (this->timeBasedLogging)
-        LogTimestamp();
+        logTimestamp();
 
     fprintf(this->logFile, "%s:%d:%s()\n", file, line, func);
 }
@@ -117,9 +117,9 @@ void Logger::LogM(const char* file, int line, const char* func) {
  * @param format A composite format string.
  * @param ... Zero or more objects to format.
  */
-void Logger::LogF(const char* format, ...) {
+void Logger::logF(const char* format, ...) {
     if (this->timeBasedLogging)
-        LogTimestamp();
+        logTimestamp();
 
     std::va_list argptr;
     va_start(argptr, format);

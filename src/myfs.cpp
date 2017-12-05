@@ -178,8 +178,8 @@ int MyFS::fuseFsyncdir(const char *path, int datasync, struct fuse_file_info *fi
 int MyFS::fuseInit(struct fuse_conn_info *conn) {
 
     // Initialize time based logging
-    Logger::GetLogger()->SetTimeBasedLogging(true);
-    if (Logger::GetLogger()->SetLogfile(((MyFsInfo*) fuse_get_context()->private_data)->logFile) != 0)
+    Logger::getLogger()->setTimeBasedLogging(true);
+    if (Logger::getLogger()->setLogfile(((MyFsInfo*) fuse_get_context()->private_data)->logFile) != 0)
         return -1;
     
     // Get the container file name here:

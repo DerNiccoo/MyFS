@@ -67,28 +67,28 @@ private:
     virtual ~MyFSMgr();
 
     // Operations
-    int RootPointerCount();
-    uint32_t ReadNextRootPointer(uint32_t position);
-    uint32_t FindNextFreeBlock();
+    int rootPointerCount();
+    uint32_t readNextRootPointer(uint32_t position);
+    uint32_t findNextFreeBlock();
 
-    void CreateInode(char* path, uint32_t blockPointer);
-    void WriteInode(Inode* node);
-    void WriteRootPointer(uint32_t newPointer);
-    void SetFATBlockPointer(uint32_t blockPointer, uint32_t nextPointer);
+    void createInode(char* path, uint32_t blockPointer);
+    void writeInode(Inode* node);
+    void writeRootPointer(uint32_t newPointer);
+    void setFATBlockPointer(uint32_t blockPointer, uint32_t nextPointer);
 
 public:
-    static MyFSMgr* Instance();
+    static MyFSMgr* instance();
     static BlockDevice* BDInstance();
 
-    void GetAbsPath(char* arg, char* path);
+    void getAbsPath(char* arg, char* path);
 
     // BlockDevice
-    void FillBlocks(uint32_t startBlockIndex, uint32_t endBlockIndex);
-    void WriteSuperBlock();
+    void fillBlocks(uint32_t startBlockIndex, uint32_t endBlockIndex);
+    void writeSuperBlock();
 
     // Operations
-    int ImportFile(char* path);
-    bool FileExists(char* path);
+    int importFile(char* path);
+    bool fileExists(char* path);
 };
 
 #endif /* MYFSMGR_H_ */
