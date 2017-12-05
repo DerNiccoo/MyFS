@@ -15,8 +15,6 @@
 #include "macros.h"
 #include "MyFSMgr.h"
 
-using namespace std;
-
 // ############
 // # NOT IN USE
 
@@ -87,16 +85,15 @@ int main(int argc, char* argv[]) {
     char containerFilePath[1024];
     MyFSMgr::Instance()->GetAbsPath(argv[1], containerFilePath);
 
-    // Initialize block device
+    LOG("Initialize block device...");
     MyFSMgr::Instance()->BDInstance()->create(containerFilePath);
     MyFSMgr::Instance()->FillBlocks(0, 16);
     MyFSMgr::Instance()->WriteSuperBlock();
 
-    // Copy input files into our container file
-    cout << "Copying files into our container file..." << endl;
+    LOG("Copying files into our container file...");
     for (int i = 2; i < argc; i++) {
         if (MyFSMgr::Instance()->ImportFile(argv[i]) == -1)
-            cout << "Duplicate file name!" << endl;
+            LOG("Duplicate file name!");
     }
 
     MyFSMgr::Instance()->BDInstance()->close();

@@ -13,7 +13,7 @@
 #include <string>
 #include <sys/stat.h>
 
-// TODO Chris: Only used by GetAbsPath, should be removed.
+// TODO Chris: Only used by GetAbsPath, could be replaced.
 #include <unistd.h>
 #include <cstring>
 

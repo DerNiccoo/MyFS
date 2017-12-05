@@ -28,11 +28,12 @@ MyFS* MyFS::Instance() {
     return _instance;
 }
 
+
 MyFS::MyFS() {
 }
-
 MyFS::~MyFS() {
 }
+
 
 int MyFS::fuseGetattr(const char *path, struct stat *statbuf) {
     LOGM();
@@ -176,12 +177,13 @@ int MyFS::fuseFsyncdir(const char *path, int datasync, struct fuse_file_info *fi
 
 int MyFS::fuseInit(struct fuse_conn_info *conn) {
 
-    // Open log file
-    if (Logger::GetLogger()->SetLogfile(((MyFsInfo*) fuse_get_context()->private_data)->logFile) == -1)
+    // Initialize time based logging
+    Logger::GetLogger()->SetTimeBasedLogging(true);
+    if (Logger::GetLogger()->SetLogfile(((MyFsInfo*) fuse_get_context()->private_data)->logFile) != 0)
         return -1;
     
     // Get the container file name here:
-    LOGF("Container file name: %s", ((MyFsInfo*) fuse_get_context()->private_data)->contFile);
+    LOGF("Container file name: %s\n", ((MyFsInfo*) fuse_get_context()->private_data)->contFile);
     
     // TODO: Enter your code here!
     

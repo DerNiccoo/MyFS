@@ -38,10 +38,8 @@ BlockDevice* MyFSMgr::BDInstance() {
 
 
 MyFSMgr::MyFSMgr() {
-    Logger::GetLogger()->Log("MyFSMgr constructor called");
 }
 MyFSMgr::~MyFSMgr() {
-    Logger::GetLogger()->Log("MyFSMgr destructor called");
 }
 
 
@@ -165,7 +163,8 @@ uint32_t MyFSMgr::FindNextFreeBlock() {
                 return ((i - FAT_START) * 128) + x + DATA_START; // Alles damit wir in die Datenblöcke kommen
         }
     }
-    cout << "Woops, something went wrong!" << endl;
+
+    LOG("Woops, something went wrong!");
     return 0; // TODO RETURN ERROR: FileSystem FULL!
 }
 
@@ -286,7 +285,7 @@ bool MyFSMgr::FileExists(char* path) {
 
     strcpy(fileName, pathSegments);
 
-    cout << fileName << endl;
+    LOGF("%s\n", fileName);
 
     if (RootPointerCount() == 0) // The first file can't be a duplicate
         return false;
@@ -295,7 +294,7 @@ bool MyFSMgr::FileExists(char* path) {
 
         _blockDevice->read(position, (char*) &node);
 
-        cout << fileName << " : " << node.fileName << endl;
+        LOGF("%s : %s\n", fileName, node.fileName);
         if (fileName == node.fileName)
             return true;
     }

@@ -13,6 +13,10 @@
 #include <cmath>
 #include <cstdarg>
 
+// Time based logging
+#include <time.h>
+#include <sys/time.h>
+
 /**
  * Usage: LOGF("Testing: LOGF %d\n", argc);
  */
@@ -33,15 +37,18 @@ class Logger {
 private:
     static Logger* _logger;
 
-    FILE *logFile;
-
     Logger();
     virtual ~Logger();
+
+    FILE *logFile;
+    bool timeBasedLogging;
+    void LogTimestamp();
 
 public:
     static Logger* GetLogger();
 
     int SetLogfile(char* logFilePath);
+    void SetTimeBasedLogging(bool enabled);
     void Log(const char* text);
     void LogM(const char* file, int line, const char* func);
     void LogF(const char* format, ...);
