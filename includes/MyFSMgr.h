@@ -53,6 +53,14 @@ struct Inode {
     uint32_t atim;              // 4 byte
     uint32_t mtim;              // 4 byte
     uint32_t ctim;              // 4 byte
+    uint32_t pointer;			// 4 byte
+};
+
+struct DataBuffer {
+	uint32_t blockNumber;
+	uint16_t dataPointer;
+	struct Inode node;
+	char data[512];
 };
 
 /**
@@ -68,13 +76,15 @@ private:
 
     // Operations
     int rootPointerCount();
-    uint32_t readNextRootPointer(uint32_t position);
     uint32_t findNextFreeBlock();
+    Inode* readNode(uint32_t nodePointer);
 
     void createInode(char* path, uint32_t blockPointer);
     void writeInode(Inode* node);
     void writeRootPointer(uint32_t newPointer);
     void setFATBlockPointer(uint32_t blockPointer, uint32_t nextPointer);
+    void removeFatPointer(uint32_t delPointer);
+    void removeRootPointer(uint32_t delPointer);
 
 public:
     static MyFSMgr* instance();
@@ -89,6 +99,9 @@ public:
     // Operations
     int importFile(char* path);
     bool fileExists(char* path);
+    void removeFile(uint32_t nodePointer);
+    uint32_t readNextRootPointer(uint32_t position);
+    uint32_t readFAT(uint32_t blockPointer);
 };
 
 #endif /* MYFSMGR_H_ */

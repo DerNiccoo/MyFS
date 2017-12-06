@@ -18,29 +18,9 @@
 // ############
 // # NOT IN USE
 
-uint32_t readFAT(uint32_t blockPointer);
 void addDateiSb();
-Inode readNode(uint32_t nodePointer);
 
 BlockDevice* _bd;
-
-uint32_t readFAT(uint32_t blockPointer) {
-    blockPointer -= DATA_START;
-    int offsetBlockNR = blockPointer / 128;
-    int offsetBlockPos = blockPointer % 128;
-
-    char read[BLOCK_SIZE];
-    _bd->read(FAT_START + offsetBlockNR, read); // FAT Start + Offset des Blocks
-
-    uint32_t result = 0;
-    uint32_t k = 2147483648;
-    for (int i = (4 * offsetBlockPos); i < (4 * (offsetBlockPos + 1)); i++) {
-        result += ((unsigned short) read[i] / 65535) * k;
-        k/=2;
-    }
-
-    return result;
-}
 
 void addDateiSb() {
     char copy[BLOCK_SIZE];
@@ -50,20 +30,6 @@ void addDateiSb() {
     _bd->write(0, (char*) sb);
 }
 
-Inode readNode(uint32_t nodePointer) {
-    Inode node;
-    uint32_t currentPointer = 0;
-
-    for (unsigned int i = NODE_START; i < NODE_ENDE; i++) {
-        if (nodePointer == currentPointer) { // Richtige Node
-            _bd->read(i, (char*) &node);
-            return node;
-        }
-        currentPointer++;
-    }
-
-    return node;
-}
 // # END
 // #####
 

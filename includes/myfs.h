@@ -10,6 +10,7 @@
 #define myfs_h
 
 #include <fuse.h>
+#include <errno.h>
 
 #include "blockdevice.h"
 #include "Logger.h"
