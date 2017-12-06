@@ -53,14 +53,14 @@ struct Inode {
     uint32_t atim;              // 4 byte
     uint32_t mtim;              // 4 byte
     uint32_t ctim;              // 4 byte
-    uint32_t pointer;			// 4 byte
+    uint32_t pointer;           // 4 byte
 };
 
 struct DataBuffer {
-	uint32_t blockNumber;
-	uint16_t dataPointer;
-	struct Inode node;
-	char data[512];
+    uint32_t blockNumber;
+    uint16_t dataPointer;
+    struct Inode node;
+    char data[512];
 };
 
 /**

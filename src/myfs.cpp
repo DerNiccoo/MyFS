@@ -38,38 +38,38 @@ MyFS::~MyFS() {
 int MyFS::fuseGetattr(const char *path, struct stat *st) {
     LOGM();
 
-	if ( strcmp( path, "/" ) == 0 )
-	{
-		st->st_uid = getuid(); // The owner of the file/directory is the user who mounted the filesystem
-		st->st_gid = getgid(); // The group of the file/directory is the same as the group of the user who mounted the filesystem
-		st->st_atime = time( NULL ); // The last "a"ccess of the file/directory is right now
-		st->st_mtime = time( NULL ); // The last "m"odification of the file/directory is right now
-		st->st_mode = S_IFDIR | 0444;
-		st->st_nlink = 2; // Why "two" hardlinks instead of "one"? The answer is here: http://unix.stackexchange.com/a/101536
-		return 0;
-	}
-	else
-	{
-		uint32_t pointer = -1;
-		char copy[512];	//Max. größe 512 und auch immer 512 groß
-		Inode* node = (Inode*)copy;
-		path++;
-		while((pointer = MyFSMgr::instance()->readNextRootPointer(pointer)) != 0){
-			MyFSMgr::BDInstance()->read(pointer, (char*)node);
+    if ( strcmp( path, "/" ) == 0 )
+    {
+        st->st_uid = getuid(); // The owner of the file/directory is the user who mounted the filesystem
+        st->st_gid = getgid(); // The group of the file/directory is the same as the group of the user who mounted the filesystem
+        st->st_atime = time( NULL ); // The last "a"ccess of the file/directory is right now
+        st->st_mtime = time( NULL ); // The last "m"odification of the file/directory is right now
+        st->st_mode = S_IFDIR | 0444;
+        st->st_nlink = 2; // Why "two" hardlinks instead of "one"? The answer is here: http://unix.stackexchange.com/a/101536
+        return 0;
+    }
+    else
+    {
+        uint32_t pointer = -1;
+        char copy[512];    //Max. größe 512 und auch immer 512 groß
+        Inode* node = (Inode*)copy;
+        path++;
+        while((pointer = MyFSMgr::instance()->readNextRootPointer(pointer)) != 0){
+            MyFSMgr::BDInstance()->read(pointer, (char*)node);
 
-			if (strcmp(node->fileName, path) == 0){
-				st->st_nlink = 1;
-				st->st_size = node->size;
-				st->st_gid = node->gid;
-				st->st_uid = node->uid;
-				st->st_mode = node->mode;
-				st->st_atim.tv_sec = node->atim;
-				st->st_mtim.tv_sec = node->mtim;
-				st->st_ctim.tv_sec = node->ctim;
-				return 0;
-			}
-		}
-	}
+            if (strcmp(node->fileName, path) == 0){
+                st->st_nlink = 1;
+                st->st_size = node->size;
+                st->st_gid = node->gid;
+                st->st_uid = node->uid;
+                st->st_mode = node->mode;
+                st->st_atim.tv_sec = node->atim;
+                st->st_mtim.tv_sec = node->mtim;
+                st->st_ctim.tv_sec = node->ctim;
+                return 0;
+            }
+        }
+    }
 
     return RETURN_ERRNO(ENOENT);
 }
@@ -92,19 +92,19 @@ int MyFS::fuseMkdir(const char *path, mode_t mode) {
 int MyFS::fuseUnlink(const char *path) {
     LOGM();
 
-	uint32_t pointer = -1;
-	char copy[512];
-	Inode* node = (Inode*)copy;
-	path++;
-	while((pointer = MyFSMgr::instance()->readNextRootPointer(pointer)) != 0){
-		MyFSMgr::BDInstance()->read(pointer, (char*)node);
+    uint32_t pointer = -1;
+    char copy[512];
+    Inode* node = (Inode*)copy;
+    path++;
+    while((pointer = MyFSMgr::instance()->readNextRootPointer(pointer)) != 0){
+        MyFSMgr::BDInstance()->read(pointer, (char*)node);
 
-		if (strcmp(node->fileName, path) == 0){
-			MyFSMgr::instance()->removeFile(pointer);
-			return 0;
-		}
-	}
-    return 0;	//TODO: ErrorCode
+        if (strcmp(node->fileName, path) == 0){
+            MyFSMgr::instance()->removeFile(pointer);
+            return 0;
+        }
+    }
+    return 0;    //TODO: ErrorCode
 }
 
 int MyFS::fuseRmdir(const char *path) {
@@ -156,27 +156,27 @@ int MyFS::fuseRead(const char *path, char *buf, size_t size, off_t offset, struc
     LOGM();
 
     uint32_t pointer = -1;
-	char copy[BLOCK_SIZE];	//Max. größe 512 und auch immer 512 groß
-	char read[BLOCK_SIZE];
-	Inode* node = (Inode*)copy;
-	path++;
-	while((pointer = MyFSMgr::instance()->readNextRootPointer(pointer)) != 0){
-		MyFSMgr::BDInstance()->read(pointer, (char*)node);
+    char copy[BLOCK_SIZE];    //Max. größe 512 und auch immer 512 groß
+    char read[BLOCK_SIZE];
+    Inode* node = (Inode*)copy;
+    path++;
+    while((pointer = MyFSMgr::instance()->readNextRootPointer(pointer)) != 0){
+        MyFSMgr::BDInstance()->read(pointer, (char*)node);
 
-		if (strcmp(node->fileName, path) == 0){
-			uint32_t pointer = node->pointer;
-			uint32_t off = 0;
-			do {
-				MyFSMgr::BDInstance()->read(pointer, read);
-				memcpy(buf + off, read, BLOCK_SIZE);
-				off = off + BLOCK_SIZE;
-			} while ((pointer = MyFSMgr::instance()->readFAT(pointer)) != UINT32_MAX);
+        if (strcmp(node->fileName, path) == 0){
+            uint32_t pointer = node->pointer;
+            uint32_t off = 0;
+            do {
+                MyFSMgr::BDInstance()->read(pointer, read);
+                memcpy(buf + off, read, BLOCK_SIZE);
+                off = off + BLOCK_SIZE;
+            } while ((pointer = MyFSMgr::instance()->readFAT(pointer)) != UINT32_MAX);
 
-			return node->size;
-		}
-	}
+            return node->size;
+        }
+    }
 
-    return 0;	//TODO: ErrorCode
+    return 0;    //TODO: ErrorCode
 }
 
 int MyFS::fuseWrite(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fileInfo) {
@@ -232,22 +232,22 @@ int MyFS::fuseOpendir(const char *path, struct fuse_file_info *fileInfo) {
 int MyFS::fuseReaddir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fileInfo) {
     LOGM();
 
-	filler( buf, ".", NULL, 0 ); // Current Directory
-	filler( buf, "..", NULL, 0 ); // Parent Directory
+    filler( buf, ".", NULL, 0 ); // Current Directory
+    filler( buf, "..", NULL, 0 ); // Parent Directory
 
-	if ( strcmp( path, "/" ) == 0 ) // If the user is trying to show the files/directories of the root directory show the following
-	{
-		uint32_t pointer = -1;
-		char copy[BLOCK_SIZE];
-		Inode* node = (Inode*)copy;
-		while((pointer = MyFSMgr::instance()->readNextRootPointer(pointer)) != 0){
-			MyFSMgr::BDInstance()->read(pointer, (char*)node);
-			filler(buf, node->fileName, NULL, 0);
-		}
+    if ( strcmp( path, "/" ) == 0 ) // If the user is trying to show the files/directories of the root directory show the following
+    {
+        uint32_t pointer = -1;
+        char copy[BLOCK_SIZE];
+        Inode* node = (Inode*)copy;
+        while((pointer = MyFSMgr::instance()->readNextRootPointer(pointer)) != 0){
+            MyFSMgr::BDInstance()->read(pointer, (char*)node);
+            filler(buf, node->fileName, NULL, 0);
+        }
 
-	} else {
-		return RETURN_ERRNO(ENOTDIR);
-	}
+    } else {
+        return RETURN_ERRNO(ENOTDIR);
+    }
 
     return 0;
 }
