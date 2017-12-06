@@ -15,23 +15,7 @@
 #include "macros.h"
 #include "MyFSMgr.h"
 
-// ############
-// # NOT IN USE
 
-void addDateiSb();
-
-BlockDevice* _bd;
-
-void addDateiSb() {
-    char copy[BLOCK_SIZE];
-    Superblock* sb = (Superblock*) copy;
-    _bd->read(0, (char*) sb);
-    sb->Files = sb->Files+1;
-    _bd->write(0, (char*) sb);
-}
-
-// # END
-// #####
 
 /**
  * Initial main method of MyFS mkfs.

@@ -83,14 +83,38 @@ void MyFSMgr::fillBlocks(uint32_t startBlockIndex, uint32_t endBlockIndex) {
 void MyFSMgr::writeSuperBlock() {
     char copy[BLOCK_SIZE];
     Superblock* sb = (Superblock*) copy;
+    LOGF("%i: FAT_ENDE; %i: NODE_START; %i: NODE_ENDE; %i: DATA_START \n",FAT_ENDE, NODE_START, NODE_ENDE, DATA_START);
 
-    sb->Size = SIZE;
+    sb->Size = SYSTEM_SIZE;
     sb->PointerData = DATA_START;
     sb->PointerFat = FAT_START;
     sb->PointerNode = NODE_START;
+    sb->File_Count = 0;
 
     _blockDevice->write(0, (char*) sb);
 }
+
+void MyFSMgr::addFile() {
+    char read[BLOCK_SIZE];
+    _blockDevice->read(0, read);
+
+    Superblock* sb = (Superblock*) read;
+    sb->File_Count++;
+
+    _blockDevice->write(0, (char*) sb);
+}
+
+void MyFSMgr::removeFile() {
+    char read[BLOCK_SIZE];
+    _blockDevice->read(0, read);
+
+    Superblock* sb = (Superblock*) read;
+    if(sb->File_Count > 0){
+        sb->File_Count--;
+    }
+    _blockDevice->write(0, (char*) sb);
+}
+
 
 
 /**
@@ -137,6 +161,7 @@ int MyFSMgr::importFile(char* path) {
         _blockDevice->write(blockPointer, fileContent);
         setFATBlockPointer(blockPointer, MAX_UINT);
     }
+    addFile();
     return 0;
 }
 
@@ -149,7 +174,7 @@ uint32_t MyFSMgr::findNextFreeBlock() {
     uint32_t result;
 
     char read[BLOCK_SIZE];
-    for(uint32_t i = FAT_START; i < FAT_ENDE; i++) {
+    for(uint32_t i = FAT_START; i <= FAT_ENDE; i++) {
         _blockDevice->read(i, read);
 
         for (int x = 0; x < 128; x++) { // Max. ints in einem Block
@@ -205,7 +230,7 @@ void MyFSMgr::createInode(char* path, uint32_t blockPointer) {
 void MyFSMgr::writeInode(Inode* node) {
     char read[BLOCK_SIZE];
 
-    for (uint32_t pointer = NODE_START; pointer < NODE_ENDE; pointer++) {
+    for (uint32_t pointer = NODE_START; pointer <= NODE_ENDE; pointer++) {
         _blockDevice->read(pointer, read);
 
         if (read[0] == 0) { // Block is empty
