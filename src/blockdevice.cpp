@@ -26,6 +26,9 @@
 BlockDevice::BlockDevice(uint32_t blockSize) {
     assert(blockSize % 512 == 0);
     this->blockSize = blockSize;
+
+    this->contFile = 0;
+    this->size = 0;
 }
 
 void BlockDevice::resize(u_int32_t blockSize) {
@@ -34,16 +37,24 @@ void BlockDevice::resize(u_int32_t blockSize) {
 }
 
 /**
- * Create the BlockDevice file with the given path.
+ * Create the container file with the given path.
+ * If the file does already exist it will be overwritten.
  *
- * @param path The absolute path of the BlockDevice file.
+ * @param path The absolute path of the container file.
  * @return Always 0.
  */
-int BlockDevice::create(const char *path) {
+int BlockDevice::create(const char* path) {
     
-    // TODO: handle block devices
+    // Delete existing container file
+    if (access( path, F_OK ) != -1) {
+        if (remove( path ) != 0) {
+            error("Error deleting existing container file!");
+        } else {
+            LOG("Existing container file successfully deleted.");
+        }
+    }
     
-    // Open Container file
+    // Create new container file
     contFile = ::open(path, O_EXCL | O_RDWR | O_CREAT, 0666);
     if (contFile < 0) {
         if (errno == EEXIST)
@@ -58,16 +69,20 @@ int BlockDevice::create(const char *path) {
     
     // Get file size
     off_t size = st.st_size;
-    if(size > INT32_MAX)
+    if (size > INT32_MAX)
         error("File is to large!");
     this->size = (uint32_t) size;
     
     return 0;
 }
 
+/**
+ * Open the container file with the given path.
+ *
+ * @param path The absolute path of the container file.
+ * @return Always 0.
+ */
 int BlockDevice::open(const char *path) {
-    
-    // TODO: handle block devices
     
     // Open Container file
     contFile = ::open(path, O_EXCL | O_RDWR);
@@ -83,7 +98,7 @@ int BlockDevice::open(const char *path) {
     stat(path, &st);
     
     // Get file size
-    if(st.st_size > INT32_MAX)
+    if (st.st_size > INT32_MAX)
         error("File is to large!");
     this->size = (uint32_t) st.st_size;
     

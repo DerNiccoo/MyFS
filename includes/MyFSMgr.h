@@ -24,7 +24,7 @@
 // Definitions
 static int const NAME_LENGTH      = 255; // Max. length of a filename
 static int const BLOCK_SIZE       = 512; // Logical Block Size
-static int const NUM_DIR_ENTRIES  =  4; // Max. directory entries
+static int const NUM_DIR_ENTRIES  =   4; // Max. directory entries
 static int const NUM_OPEN_FILES   =  64; // Max. open files per MyFS container file
 
 static uint32_t const MAX_UINT    =  -1;
@@ -42,15 +42,12 @@ static uint32_t const ROOT_BLOCK  =  NODE_ENDE + 1;
 
 static uint32_t const DATA_START  =  ROOT_BLOCK + 1;
 
-
-
-
 struct Superblock {
-    uint32_t Size;
-    uint32_t PointerFat;
-    uint32_t PointerNode;
-    uint32_t PointerData;
-    uint32_t File_Count;
+    uint32_t size;
+    uint32_t pointerFat;
+    uint32_t pointerNode;
+    uint32_t pointerData;
+    uint32_t fileCount;
 };
 
 struct Inode {
@@ -69,11 +66,11 @@ struct DataBuffer {
     uint32_t blockNumber;
     uint16_t dataPointer;
     struct Inode node;
-    char data[512];
+    char data[BLOCK_SIZE];
 };
 
 struct RootDirect {
-    uint32_t pointer [128];
+    uint32_t pointer[128];
 };
 
 /**
@@ -108,8 +105,7 @@ public:
     // BlockDevice
     void fillBlocks(uint32_t startBlockIndex, uint32_t endBlockIndex);
     void writeSuperBlock();
-    void addFile();
-    void removeFile();
+    void changeSBFileCount(int difference);
 
     // Operations
     int importFile(char* path);

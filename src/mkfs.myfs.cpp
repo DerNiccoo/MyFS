@@ -16,7 +16,6 @@
 #include "MyFSMgr.h"
 
 
-
 /**
  * Initial main method of MyFS mkfs.
  *
@@ -40,7 +39,7 @@ int main(int argc, char* argv[]) {
     MyFSMgr::instance()->fillBlocks(0, 16);
     MyFSMgr::instance()->writeSuperBlock();
 
-    LOG("Copying files into our container file...");
+    LOG("Copying files into container file...");
     for (int i = 2; i < argc; i++) {
         if (MyFSMgr::instance()->importFile(argv[i]) == -1)
             LOG("Duplicate file name!");

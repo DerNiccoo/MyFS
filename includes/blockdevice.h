@@ -12,6 +12,8 @@
 #include <stdio.h>
 #include <cstdint>
 
+#include "Logger.h"
+
 #define BD_BLOCK_SIZE 512
 
 class BlockDevice {
