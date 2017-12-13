@@ -6,353 +6,45 @@
 //  Copyright © 2017 Oliver Waldhorst. All rights reserved.
 //
 
-#define NAME_LENGTH 255;
-#define BLOCK_SIZE 512;
-#define NUM_DIR_ENTRIES 64;
-#define NUM_OPEN_FILES 64;
+#include <errno.h>
+#include <stdlib.h>
+#include <iostream>
 
 #include "myfs.h"
 #include "blockdevice.h"
 #include "macros.h"
-#include <unistd.h>
-#include <errno.h>
-#include <stdio.h>
-#include <string>
-#include <iostream>
-#include <string.h>
-#include <cstring>
-#include <time.h>
-#include <bitset>
-#include <sstream>
-#include <string>
-#include <iostream>
-
-using namespace std;
-
-BlockDevice* bd;
-
-uint32_t const FAT_ENDE = 3;
-uint32_t const FAT_START = 1;
-uint32_t const NODE_START = 4;
-uint32_t const NODE_ENDE = 9;
-uint32_t const ROOT_BLOCK = 10;
-uint32_t const DATA_START = 11;
-uint32_t const MAX_UINT = -1;
-uint32_t const GROESSE = -1;
-
-struct Inode {
-	char fileName[255]; //max 255bytes (FileName + 24bytes) (2 Für die Länge)
-	uint32_t size;	//4byte
-	short gid;		//2byte
-	short uid;		//2byte
-	short mode;		//2byte
-	uint32_t atim;	//4byte
-	uint32_t mtim;	//4byte
-	uint32_t ctim;	//4byte
-};
-
-struct Superblock {
-	uint32_t Groesse;
-	uint32_t PointerFat;
-	uint32_t PointerNode;
-	uint32_t PointerData;
-	char Dateien;
-};
-
-void getPath(char *arg, char* path);
-uint32_t findNextFreeBlock();
-void setFATBlockPointer(uint32_t blockPointer, uint32_t nextPointer);
-uint32_t readFAT(uint32_t blockPointer);
-void fillBlocks(uint32_t from, uint32_t to);
-int copyFile(char* path);
-void createInode(char* path, uint32_t blockPointer);
-void writeInode(char* data);
-Inode readNode(uint32_t nodePointer);
-int sumRootPointer();
-bool checkDuplicate(char* path);
-void writeRootPointer(uint32_t newPointer);
+#include "MyFSMgr.h"
 
 
-void getPath(char *arg, char* path){
-	char cwd[1024];
-	if (getcwd(cwd, sizeof(cwd)) == NULL)
-	   return;
+/**
+ * Initial main method of MyFS mkfs.
+ *
+ * @param argc The argument count as integer.
+ * @param argv All passed arguments as string array.
+ * @return 0 on success, nonzero on failure.
+ */
+int main(int argc, char* argv[]) {
 
-	string path1 = cwd;
-	string path2 = arg;
-	string path3 = path1 + "/" + path2;
-	strncpy(path, path3.c_str(), 1024);
-}
+    // Validate arguments
+    if (argc < 3) {
+        fprintf(stderr, "Usage: %s containerfile.bin inputfile1 [inputfile2 ...]\n", argv[0]);
+        return (EXIT_FAILURE);
+    }
 
-uint32_t readFAT(uint32_t blockPointer){
-	blockPointer -= DATA_START;
-	int offsetBlockNR = blockPointer / 128;
-	int offsetBlockPos = blockPointer % 128;
+    char containerFilePath[1024];
+    MyFSMgr::instance()->getAbsPath(argv[1], containerFilePath);
 
-	char read[512];
-	bd->read(FAT_START + offsetBlockNR, read); //FAT Start + Offset des Blocks
+    LOG("Initialize block device...");
+    MyFSMgr::instance()->BDInstance()->create(containerFilePath);
+    MyFSMgr::instance()->fillBlocks(0, 16);
+    MyFSMgr::instance()->writeSuperBlock();
 
-	uint32_t ergebnis = 0;
-	uint32_t k = 2147483648;
-	for (int i = (4 * offsetBlockPos); i < (4 * (offsetBlockPos + 1)); i++){
-		ergebnis += ((unsigned short)read[i] / 65535) * k;
-		k/=2;
-	}
+    LOG("Copying files into container file...");
+    for (int i = 2; i < argc; i++) {
+        if (MyFSMgr::instance()->importFile(argv[i]) == -1)
+            LOG("Duplicate file name!");
+    }
 
-	return ergebnis;
-}
-
-void addDateiSb(){
-	char copy[512];
-	Superblock* sb= (Superblock*) copy;
-	bd->read(0,(char*)sb);
-	sb->Dateien = sb->Dateien+1;
-	bd->write(0,(char*)sb);
-}
-
-void writeSb() {
-	char copy[512];
-	Superblock* sb = (Superblock*) copy;
-	sb->Groesse = GROESSE;
-	sb->PointerData = DATA_START;
-	sb->PointerFat = FAT_START;
-	sb->PointerNode = NODE_START;
-
-	bd->write(0, (char*)sb);
-}
-
-int sumRootPointer(){
-	char read[512];
-	int sum = 0;
-
-	bd->read(ROOT_BLOCK, read);
-
-	for (int i = 0; i < 512; i+=4) {
-		uint32_t pointer = read[i] << 24 | read[i+1] << 16 | read[i+2] << 8 | read[i+3];
-		if (pointer != 0)
-			sum++;
-	}
-	return sum;
-}
-
-void writeRootPointer(uint32_t newPointer) {
-	char read[512];
-
-	bd->read(ROOT_BLOCK, read);
-	for (int i = 0; i < 512; i+=4) {
-		uint32_t pointer = read[i] << 24 | read[i+1] << 16 | read[i+2] << 8 | read[i+3];
-		if (pointer == 0){
-			char data[4];
-			memcpy(data, &newPointer, 4);
-			for (int k = 0; k < 4; k++)	//damit die zahlen im normalen Style sind 0011 = 3 und nicht 1100 = 3
-				read[i+3-k] = data[k];
-			bd->write(ROOT_BLOCK, read);
-			return;
-		}
-	}
-}
-//Position: -1 = Ersten Treffer
-//Position: PointerPosition, es wird die NÄCHSTE zurückgegeben	(damit lücken übersprungen werden, wenn man z.B. etwas löscht)
-//Rückgabe: 0 = war der letzte Pointer sonst gibt es immer den nächsten Pointer
-uint32_t readNextRootPointer(uint32_t position){
-	char read[512];
-
-	bd->read(ROOT_BLOCK, read);
-	for (int i = 0; i < 512; i+=4) {
-		uint32_t pointer = read[i] << 24 | read[i+1] << 16 | read[i+2] << 8 | read[i+3];
-
-		if (pointer != 0 && position == MAX_UINT)
-			return pointer;
-
-		if (pointer == position)
-			position = MAX_UINT;
-	}
-
-	return 0;
-}
-
-void fillBlocks(uint32_t from, uint32_t to){
-	char fill[512];
-	for (int i = 0; i < 512; i++)
-		fill[i] = 0; //255 = 1
-
-	for (uint32_t i = from; i < to; i++)
-		bd->write(i, fill);
-}
-
-bool checkDuplicate(char* path) {
-	Inode node;
-	uint32_t position = MAX_UINT;
-	char* newFileName = strtok(path, "/");
-	char fileName[255];
-
-	strcpy(fileName, newFileName);
-
-	if (sumRootPointer() == 0)	//Die erste Datei kann kein duplicate sein.
-		return false;
-
-	cout << fileName << endl;
-
-	while((position = readNextRootPointer(position)) != 0){
-		bd->read(position, (char*)&node);
-		cout << fileName << " : " << node.fileName << endl;
-		if (fileName == node.fileName)
-			return true;
-	}
-
-	return false;
-}
-
-int copyFile(char* path){
-	if (checkDuplicate(path))
-		return -1;
-
-	FILE *f = fopen(path, "rb");
-	fseek(f, 0, SEEK_END);
-	long fsize = ftell(f);
-	fseek(f, 0, SEEK_SET);
-
-	char *string = (char *)malloc(fsize + 1);
-	fread(string, fsize, 1, f);
-	fclose(f);
-
-	int position = 0;
-	uint32_t blockPointer = findNextFreeBlock();
-	uint32_t oldPointer;
-	createInode(path, blockPointer);
-	char data[512];
-	if (strlen(string) > 512) { //wir benötigen mehr als nur ein Block
-		while((unsigned)(position * 512) < strlen(string)){
-			for (int i = 0; i < 512; i++)	//füllen der Daten zum schreiben
-				data[i] = string[(position * 512) + i];
-
-			bd->write(blockPointer, data);
-			setFATBlockPointer(blockPointer, MAX_UINT); //block auf belegt setzen
-			oldPointer = blockPointer;
-
-			blockPointer = findNextFreeBlock();	//neuen Block holen
-			setFATBlockPointer(oldPointer, blockPointer);	//verweiß setzen
-			position++;
-		}
-	} else {	//izi. nur ein Block
-		bd->write(blockPointer, string);
-		setFATBlockPointer(blockPointer, MAX_UINT);
-	}
-	return 0;
-}
-
-void createInode(char* path, uint32_t blockPointer) {
-	char copy[512];	//Max. größe 512 und auch immer 512 groß
-	Inode* node = (Inode*)copy;
-	char* chars_array = strtok(path, "/");
-
-	struct stat meta;
-	stat(path, &meta);
-
-	strcpy(node->fileName, chars_array);
-	node->size = meta.st_size;
-	node->gid = meta.st_gid;
-	node->uid = meta.st_uid;
-	node->mode = meta.st_mode;
-
-	node->atim = meta.st_atim.tv_sec;
-	node->mtim = meta.st_mtim.tv_sec;
-	node->ctim = meta.st_ctim.tv_sec;
-
-    writeInode((char*)node);
-}
-
-void writeInode(char* data) {
-	char read[512];
-
-	for (uint32_t i = NODE_START; i < NODE_ENDE; i++){
-		bd->read(i, read);
-		if (read[0] == 0) {	//Leerer Block
-			bd->write(i, data);
-			writeRootPointer(i);
-			return;
-		}
-	}
-}
-
-Inode readNode(uint32_t nodePointer){
-	Inode node;
-	uint32_t currentPointer = 0;
-
-	for (unsigned int i = NODE_START; i < NODE_ENDE; i++){
-		if (nodePointer == currentPointer) {	//Richtige Node
-			bd->read(i, (char*)&node);
-			return node;
-		}
-		currentPointer++;
-	}
-
-	return node;
-}
-
-void setFATBlockPointer(uint32_t blockPointer, uint32_t nextPointer){ //0x00000000 = FREI | 0xFFFFFFFF = BELEGT
-	blockPointer -= DATA_START;
-	int offsetBlockNR = blockPointer / 128;
-	int offsetBlockPos = blockPointer % 128;
-
-	char read[512];
-	bd->read(FAT_START + offsetBlockNR, read);
-
-	char data[4];
-	if (nextPointer != 0)
-		memcpy(data, &nextPointer,sizeof(uint32_t));
-	else {
-		for (int i = 0; i < 4; i++)
-			data[i] = 0;
-	}
-
-	int k = 0;
-	for (int i = (4 * offsetBlockPos); i < (4 * (offsetBlockPos + 1)); i++){
-		read[i] = data[k];
-		k++;
-	}
-
-	bd->write(FAT_START + offsetBlockNR, read);
-}
-
-uint32_t findNextFreeBlock(){
-	uint32_t ergebnis;
-	char read[512];
-	for(uint32_t i = FAT_START; i < FAT_ENDE; i++){
-		bd->read(i, read);
-		for (int x = 0; x < 128; x++){	//Max. ints in einem Block
-			ergebnis = 0;
-			for(int m = (4 * x); m < (4 * (x+1)); m++){	//Bauen der Zahl
-				ergebnis <<= 8;
-				ergebnis |= read[m];
-			}
-			if (ergebnis == 0)//4294967295)	//Wir einigten uns darauf das 0xFFFFFFFF = leer bedeutet
-				return ((i - FAT_START) * 128) + x + DATA_START; //Alles damit wir in die Datenblöcke kommen
-		}
-	}
-	cout << "wops, something went wrong!" << endl;
-	return 0; //RETURN ERROR: FileSystem FULL!
-}
-
-int main(int argc, char *argv[]) {
-
-	if (argc < 3)
-		printf("using: mkfs.myfs containerdatei [input-datei ...]\n");
-
-	char path[1024];
-	getPath(argv[1], path);
-
-	bd = new BlockDevice(512);
-	bd->create(path);
-	fillBlocks(0, 16);
-	writeSb();
-
-	for (int i = 2; i < argc; i++) {
-		if (copyFile(argv[i]) == -1)
-			cout << "Duplicate file name!" << endl;
-	}
-
-
-	bd->close();
-	return 0;
+    MyFSMgr::instance()->BDInstance()->close();
+    return (EXIT_SUCCESS);
 }

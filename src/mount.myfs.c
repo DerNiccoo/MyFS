@@ -13,11 +13,20 @@
 
 #include "myfs-info.h"
 
+// The file system operations
 struct fuse_operations myfs_oper;
 
+/**
+ * Initial main method of MyFS mount.
+ *
+ * @param argc The argument count as integer.
+ * @param argv All passed arguments as string array.
+ * @return 0 on success, nonzero on failure.
+ */
 int main(int argc, char *argv[]) {
     int fuse_stat;
     
+    // Mapping of the wrapper methods
     myfs_oper.getattr = wrap_getattr;
     myfs_oper.readlink = wrap_readlink;
     myfs_oper.getdir = NULL;
@@ -51,23 +60,22 @@ int main(int argc, char *argv[]) {
     
     // FsInfo will be used to pass information to fuse functions
     struct MyFsInfo *FsInfo;
-    FsInfo= malloc(sizeof(struct MyFsInfo));
+    FsInfo = malloc(sizeof(struct MyFsInfo));
     
-    // parse arguments
+    // Parse arguments
     if(argc > 3) {
         fprintf(stderr, "Containerfile= %s\n", argv[1]);
         fprintf(stderr, "Logfile=       %s\n", argv[2]);
         fprintf(stderr, "Mountpoint=    %s\n", argv[3]);
 
-        // container & log file name will be passed to fuse functions
+        // Container & log file name will be passed to fuse functions
         FsInfo->contFile= argv[1];
         FsInfo->logFile= argv[2];
                 
-        // adjust arguments
+        // Adjust arguments
         argv+= 2; argc-= 2;
-    }
-    else {
-        fprintf(stderr, "Usage: %s containerfile logfile mountpoint\n", argv[0]);
+    } else {
+        fprintf(stderr, "Usage: %s containerfile.bin logfile mountpoint\n", argv[0]);
         return (EXIT_FAILURE);
     }
     
@@ -75,7 +83,7 @@ int main(int argc, char *argv[]) {
     
     fprintf(stderr, "fuse_main returned %d\n", fuse_stat);
     
-    // cleanup
+    // Cleanup
     free(FsInfo);
     
     return fuse_stat;

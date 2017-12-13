@@ -6,26 +6,21 @@
 //  Copyright © 2017 Oliver Waldhorst. All rights reserved.
 //
 
+// Global
 #include <iostream>
 #include <cstring>
 #include <cmath>
 
+// Project specific
 #include "myfs.h"
 #include "myfs-info.h"
 
+using namespace std;
+
 MyFS* MyFS::_instance = NULL;
+DataBuffer dataBuffer[64];
 
-#define RETURN_ERRNO(x) (x) == 0 ? 0 : -errno
-
-#define LOGF(fmt, ...) \
-do { fprintf(this->logFile, fmt "\n", __VA_ARGS__); } while (0)
-
-#define LOG(text) \
-do { fprintf(this->logFile, text "\n"); } while (0)
-
-#define LOGM() \
-do { fprintf(this->logFile, "%s:%d:%s()\n", __FILE__, \
-__LINE__, __func__); } while (0)
+#define RETURN_ERRNO(x) (x) == 0 ? 0 : -x
 
 MyFS* MyFS::Instance() {
     if(_instance == NULL) {
@@ -34,17 +29,49 @@ MyFS* MyFS::Instance() {
     return _instance;
 }
 
+
 MyFS::MyFS() {
-    this->logFile= stderr;
+}
+MyFS::~MyFS() {
 }
 
-MyFS::~MyFS() {
-    
-}
 
 int MyFS::fuseGetattr(const char *path, struct stat *statbuf) {
-    LOGM();
-    return 0;
+    //LOGM();
+    //LOGF("path: %s\n", path);
+
+    if ( strcmp( path, "/" ) == 0 ) {
+        statbuf->st_uid = getuid(); // The owner of the file/directory is the user who mounted the filesystem
+        statbuf->st_gid = getgid(); // The group of the file/directory is the same as the group of the user who mounted the filesystem
+        statbuf->st_atime = time( NULL ); // The last "a"ccess of the file/directory is right now
+        statbuf->st_mtime = time( NULL ); // The last "m"odification of the file/directory is right now
+        statbuf->st_ctime = time( NULL );
+        statbuf->st_mode = S_IFDIR | 0755;
+        statbuf->st_nlink = 2; // Why "two" hardlinks instead of "one"? The answer is here: http://unix.stackexchange.com/a/101536
+        return 0;
+    } else {
+        uint32_t pointer = -1;
+        char copy[512];    // Max. größe 512 und auch immer 512 groß
+        Inode* node = (Inode*)copy;
+        path++;
+        while((pointer = MyFSMgr::instance()->readNextRootPointer(pointer)) != 0){
+            MyFSMgr::BDInstance()->read(pointer, (char*)node);
+
+            if (strcmp(node->fileName, path) == 0){
+                statbuf->st_nlink = 1;
+                statbuf->st_size = node->size;
+                statbuf->st_gid = node->gid;
+                statbuf->st_uid = node->uid;
+                statbuf->st_mode = node->mode;
+                statbuf->st_atim.tv_sec = node->atim;
+                statbuf->st_mtim.tv_sec = node->mtim;
+                statbuf->st_ctim.tv_sec = node->ctim;
+                return 0;
+            }
+        }
+    }
+
+    return -ENOENT;
 }
 
 int MyFS::fuseReadlink(const char *path, char *link, size_t size) {
@@ -54,6 +81,17 @@ int MyFS::fuseReadlink(const char *path, char *link, size_t size) {
 
 int MyFS::fuseMknod(const char *path, mode_t mode, dev_t dev) {
     LOGM();
+    /*
+    path++;
+
+    string s1, s2 = "swp";
+    s1.append(path);
+    if (s1.find(s2) != std::string::npos)
+    	return 0;
+
+    LOGF("path: %s\n", path);
+    mode = S_IFDIR | 0755;
+    MyFSMgr::instance()->createNewInode(path);*/
     return 0;
 }
 
@@ -64,7 +102,20 @@ int MyFS::fuseMkdir(const char *path, mode_t mode) {
 
 int MyFS::fuseUnlink(const char *path) {
     LOGM();
-    return 0;
+
+    uint32_t pointer = -1;
+    char copy[512];
+    Inode* node = (Inode*)copy;
+    path++;
+    while ((pointer = MyFSMgr::instance()->readNextRootPointer(pointer)) != 0) {
+        MyFSMgr::BDInstance()->read(pointer, (char*)node);
+
+        if (strcmp(node->fileName, path) == 0) {
+            MyFSMgr::instance()->removeFile(pointer);
+            return 0;
+        }
+    }
+    return 0;    //TODO: ErrorCode
 }
 
 int MyFS::fuseRmdir(const char *path) {
@@ -109,12 +160,68 @@ int MyFS::fuseUtime(const char *path, struct utimbuf *ubuf) {
 
 int MyFS::fuseOpen(const char *path, struct fuse_file_info *fileInfo) {
     LOGM();
-    return 0;
+
+    uint32_t pointer = -1;
+    char read[BLOCK_SIZE];
+    char copy[BLOCK_SIZE];
+    Inode* node = (Inode*)copy;
+    path++;
+    while ((pointer = MyFSMgr::instance()->readNextRootPointer(pointer)) != 0){
+        MyFSMgr::BDInstance()->read(pointer, (char*)node);
+
+        if (strcmp(node->fileName, path) == 0) {                 //Anlegen eines Buffers
+            DataBuffer db;                                       //Zum füllen aller wichtigen Daten, INode, DataPointer, BlockNr, Buffer(char[512])
+            db.blockNumber = 0;                                  //da wir max. 64 Datein haben, ein Array mit 64 Plätzen. Im fh kommt dann der Index der File
+            MyFSMgr::BDInstance()->read(node->pointer, read);    //In den nachfolgenden Fuse Operationen können wir dann auf das File & den Buffer zugreifen
+            memcpy(&db.data, read, 512);
+            db.node = node;
+            db.dataPointer = node->pointer;
+            dataBuffer[pointer - NODE_START] = db;
+            fileInfo->fh = pointer - NODE_START;
+            return 0;
+        }
+    }
+    return 0;   //Return error file not found
 }
 
 int MyFS::fuseRead(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fileInfo) {
     LOGM();
-    return 0;
+    int fh = fileInfo->fh;
+
+    MyFSMgr::instance()->moveBuffer(&dataBuffer[fh], offset);
+    LOGF("path: %s, size: %u, offset: %u, fileHandle: %u\n", path, size, offset, fh);
+
+    if (size + offset > dataBuffer[fh].node->size) { //Die gesamte Datei wurde angefordert vom offset an
+
+    } else {                                //Es soll nur ein Teil der gesamten Datei gelesen werden
+
+    }
+
+    memcpy(buf, dataBuffer[fh].data, 512);
+    return 512;
+    /*
+    uint32_t pointer = -1;
+    char copy[BLOCK_SIZE]; // Max. größe 512 und auch immer 512 groß
+    char read[BLOCK_SIZE];
+    Inode* node = (Inode*)copy;
+    path++;
+    while ((pointer = MyFSMgr::instance()->readNextRootPointer(pointer)) != 0){
+        MyFSMgr::BDInstance()->read(pointer, (char*)node);
+
+        if (strcmp(node->fileName, path) == 0) {
+            uint32_t pointer = node->pointer;
+            uint32_t off = 0;
+            do {
+                MyFSMgr::BDInstance()->read(pointer, read);
+                memcpy(buf + off, read, BLOCK_SIZE);
+                off = off + BLOCK_SIZE;
+            } while ((pointer = MyFSMgr::instance()->readFAT(pointer)) != UINT32_MAX);
+
+            return node->size;
+        }
+    }*/
+
+    return 0; // TODO: ErrorCode
 }
 
 int MyFS::fuseWrite(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fileInfo) {
@@ -134,6 +241,7 @@ int MyFS::fuseFlush(const char *path, struct fuse_file_info *fileInfo) {
 
 int MyFS::fuseRelease(const char *path, struct fuse_file_info *fileInfo) {
     LOGM();
+    //dataBuffer[fileInfo->fh] = nullptr;
     return 0;
 }
 
@@ -169,6 +277,23 @@ int MyFS::fuseOpendir(const char *path, struct fuse_file_info *fileInfo) {
 
 int MyFS::fuseReaddir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fileInfo) {
     LOGM();
+
+    filler( buf, ".", NULL, 0 );  // Current Directory
+    filler( buf, "..", NULL, 0 ); // Parent Directory
+
+    if ( strcmp( path, "/" ) == 0 ) { // If the user is trying to show the files/directories of the root directory show the following
+        uint32_t pointer = -1;
+        char copy[BLOCK_SIZE];
+        Inode* node = (Inode*)copy;
+        while((pointer = MyFSMgr::instance()->readNextRootPointer(pointer)) != 0){
+            MyFSMgr::BDInstance()->read(pointer, (char*)node);
+            filler(buf, node->fileName, NULL, 0);
+        }
+
+    } else {
+        return RETURN_ERRNO(ENOTDIR);
+    }
+
     return 0;
 }
 
@@ -184,23 +309,16 @@ int MyFS::fuseFsyncdir(const char *path, int datasync, struct fuse_file_info *fi
 
 int MyFS::fuseInit(struct fuse_conn_info *conn) {
 
-    // Open logfile
-    this->logFile= fopen(((MyFsInfo *) fuse_get_context()->private_data)->logFile, "w");
-    if(this->logFile == NULL) {
-        fprintf(stderr, "ERROR: Cannot open logfile %s\n", ((MyFsInfo *) fuse_get_context()->private_data)->logFile);
+    // Initialize time based logging
+    Logger::getLogger()->setTimeBasedLogging(true);
+    if (Logger::getLogger()->setLogfile(((MyFsInfo*) fuse_get_context()->private_data)->logFile) != 0)
         return -1;
-    }
     
-    // turn of logfile buffering
-    setvbuf(this->logFile, NULL, _IOLBF, 0);
-
-    LOG("Starting logging...\n");
-    LOGM();
-        
-    // you can get the containfer file name here:
-    LOGF("Container file name: %s", ((MyFsInfo *) fuse_get_context()->private_data)->contFile);
+    // Get the container file name here:
+    LOGF("Container file name: %s\n", ((MyFsInfo*) fuse_get_context()->private_data)->contFile);
     
     // TODO: Enter your code here!
+    MyFSMgr::BDInstance()->open(((MyFsInfo*) fuse_get_context()->private_data)->contFile);
     
     return 0;
 }

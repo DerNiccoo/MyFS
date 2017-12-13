@@ -10,20 +10,22 @@
 #define myfs_h
 
 #include <fuse.h>
+#include <errno.h>
 
 #include "blockdevice.h"
+#include "Logger.h"
+#include "MyFSMgr.h"
 
 class MyFS {
 private:
     static MyFS *_instance;
-    FILE *logFile;
     
 public:
     static MyFS *Instance();
     
     MyFS();
     ~MyFS();
-    
+
     // --- Methods called by FUSE ---
     int fuseGetattr(const char *path, struct stat *statbuf);
     int fuseReadlink(const char *path, char *link, size_t size);
