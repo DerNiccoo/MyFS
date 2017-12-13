@@ -2,16 +2,16 @@
 MyFS implementation using libfuse
 
 # ToDo:
-- (Bug)Beim erstellen einer neuen Datei wird ein Ordner erstellt. Keine normale Datei
-- (Bug)Berechnung der Positionen der START/END Blöcke
-- SuperBlock füllen und Rechte aus den SuperBlock nehmen um diese für FuseGetAttr() bei "/" zurück zugeben
-- SuperBlock Automatisch beim Hinzufügen/Löschen/Ändern von Daten aktualisieren
-- Überprüfen der Rechte, um so für Aufg 1 READ-Only Datein zu haben, die auch nicht gelöscht werden können
-- (Frage)Wollen wir den Container umschreiben, zum verwalten der freien Blöcke, oder lassen wir es so wie es ist. Nachteil wäre das wir alle Blöcke durchgehen zum finden von freien Blöcken.
-- Dafür sorgen das der Container groß genug ist. Max?
-- FuseWrite, zum (über-)schreiben in Datein. 
-- Sinnvolle ERROR Returns
-- Buffer Struktur für das Lesen und Schreiben von FUSE
+- [ ] (Bug)Beim erstellen einer neuen Datei wird ein Ordner erstellt. Keine normale Datei
+- [ ] (Bug)Berechnung der Positionen der START/END Blöcke
+- [ ] SuperBlock füllen und Rechte aus den SuperBlock nehmen um diese für FuseGetAttr() bei "/" zurück zugeben
+- [ ] SuperBlock Automatisch beim Hinzufügen/Löschen/Ändern von Daten aktualisieren
+- [ ] Überprüfen der Rechte, um so für Aufg 1 READ-Only Datein zu haben, die auch nicht gelöscht werden können
+- [ ] (Frage)Wollen wir den Container umschreiben, zum verwalten der freien Blöcke, oder lassen wir es so wie es ist. Nachteil wäre das wir alle Blöcke durchgehen zum finden von freien Blöcken.
+- [ ] Dafür sorgen das der Container groß genug ist. Max?
+- [ ] FuseWrite, zum (über-)schreiben in Datein. 
+- [ ] Sinnvolle ERROR Returns
+- [ ] Buffer Struktur für das Lesen und Schreiben von FUSE
 
 # TestIdeen:
 Aufgabe 1:
