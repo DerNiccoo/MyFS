@@ -24,7 +24,9 @@
 // Definitions
 static int const NAME_LENGTH      = 255; // Max. length of a filename
 static int const BLOCK_SIZE       = 512; // Logical Block Size
+
 static int const NUM_DIR_ENTRIES  =   5; // Max. directory entries
+
 static int const NUM_OPEN_FILES   =  64; // Max. open files per MyFS container file
 
 static uint32_t const MAX_UINT    =  -1;

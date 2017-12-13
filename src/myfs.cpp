@@ -186,6 +186,7 @@ int MyFS::fuseOpen(const char *path, struct fuse_file_info *fileInfo) {
 
 int MyFS::fuseRead(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fileInfo) {
     LOGM();
+
     int fh = fileInfo->fh;
 
     MyFSMgr::instance()->moveBuffer(&dataBuffer[fh], offset);
@@ -200,6 +201,7 @@ int MyFS::fuseRead(const char *path, char *buf, size_t size, off_t offset, struc
     memcpy(buf, dataBuffer[fh].data, 512);
     return 512;
     /*
+
     uint32_t pointer = -1;
     char copy[BLOCK_SIZE]; // Max. größe 512 und auch immer 512 groß
     char read[BLOCK_SIZE];
@@ -241,7 +243,6 @@ int MyFS::fuseFlush(const char *path, struct fuse_file_info *fileInfo) {
 
 int MyFS::fuseRelease(const char *path, struct fuse_file_info *fileInfo) {
     LOGM();
-    //dataBuffer[fileInfo->fh] = nullptr;
     return 0;
 }
 
