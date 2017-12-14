@@ -117,6 +117,7 @@ public:
     uint32_t readFAT(uint32_t blockPointer);
     void createNewInode(const char* path);
     int moveBuffer(DataBuffer* db, int offset);
+    int moveBuffer(DataBuffer* db);
     int copyDataToBuffer(char* buf, char read[512], int from, int to, int offset);
 };
 

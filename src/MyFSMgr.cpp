@@ -522,7 +522,6 @@ void MyFSMgr::removeRootPointer(uint32_t delPointer) {
  */
 int MyFSMgr::moveBuffer(DataBuffer* db, int off) {
     char read[BLOCK_SIZE];
-    LOGF("%u\n", db->dataPointer);
     uint32_t blockOffset = off / BLOCK_SIZE; //The Block that should the Buffer contains
     if (blockOffset == db->blockNumber)
         return 0;
@@ -531,13 +530,33 @@ int MyFSMgr::moveBuffer(DataBuffer* db, int off) {
         db->dataPointer = MyFSMgr::instance()->readFAT(db->dataPointer);
         if (db->dataPointer == MAX_UINT)
             return -1;
-        LOGF("%u\n", db->blockNumber);
         db->blockNumber++;
     }
     MyFSMgr::BDInstance()->read(db->dataPointer, read);
-    memcpy(&db->data, read, 512);
+    memcpy(&db->data, read, BLOCK_SIZE);
     return 0;
 }
+
+/**
+ * Moves the buffer one block further.
+ *
+ * @param db    The DataBuffer that should be moved.
+ * @return  0   on success.
+ *          -1  if it's the last block.
+ */
+int MyFSMgr::moveBuffer(DataBuffer* db) {
+    char read[BLOCK_SIZE];
+
+    db->dataPointer = MyFSMgr::instance()->readFAT(db->dataPointer);
+    if (db->dataPointer == MAX_UINT)
+        return -1;
+    db->blockNumber++;
+
+    MyFSMgr::BDInstance()->read(db->dataPointer, read);
+    memcpy(&db->data, read, BLOCK_SIZE);
+    return 0;
+}
+
 /**
  * Write data in buf, beginns at 'from' till 'to' with an offset for the buffer.
  * This way you can write some Bytes out of a Array into a buffer. With the
