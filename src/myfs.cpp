@@ -198,7 +198,8 @@ int MyFS::fuseRead(const char *path, char *buf, size_t size, off_t offset, struc
 
     }
 
-    memcpy(buf, dataBuffer[fh].data, 512);
+    MyFSMgr::instance()->copyDataToBuffer(buf, dataBuffer[fh].data, 0, 512, 0);
+    //memcpy(buf, dataBuffer[fh].data, 512);
     return 512;
     /*
 

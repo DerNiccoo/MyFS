@@ -538,3 +538,22 @@ int MyFSMgr::moveBuffer(DataBuffer* db, int off) {
     memcpy(&db->data, read, 512);
     return 0;
 }
+/**
+ * Write data in buf, beginns at 'from' till 'to' with an offset for the buffer.
+ * This way you can write some Bytes out of a Array into a buffer. With the
+ * offset it is possible to combine multiple Blockdata in one buffer.
+ *
+ * @param buf       The buffer, most of the time from fuse.
+ * @param data      The data that will be written into the buffer.
+ * @param from      The start index of data.
+ * @param to        The end Index of data.
+ * @param offset    An offset for the buffer.
+ * @return          The position of the new offset, useful for combining multiple blocks.
+ */
+int MyFSMgr::copyDataToBuffer(char* buf, char data[512], int from, int to, int offset) {
+    for (int i = from; i < to; i++) {
+        memcpy(buf + offset, &data[i], 1);
+        offset++;
+    }
+    return offset;
+}
