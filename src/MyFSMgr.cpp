@@ -78,7 +78,9 @@ void MyFSMgr::fillBlocks(uint32_t startBlockIndex, uint32_t endBlockIndex) {
 }
 
 /**
- * TODO Chris: Fill
+ * Write the SuperBlock into our FileSystem. The SuperBlock is always
+ * the first block in a FileSystem and contains some information about
+ * a file system.
  */
 void MyFSMgr::writeSuperBlock() {
     char copy[BLOCK_SIZE];
@@ -118,10 +120,13 @@ void MyFSMgr::changeSBFileCount(int difference) {
 }
 
 /**
- * TODO Chris: Fill
+ * Imports a file to our FileSystem. Checks if the file already exists,
+ * if not creates an Inode and write the data into the DataBlocks. If
+ * needed links multiple blocks together in the FAT.
  *
- * @param path
- * @return
+ * @param path The path to the file that should be imported.
+ * @return  0 On success.
+ *          -1 If the file already exists.
  */
 int MyFSMgr::importFile(char* path) {
     if (fileExists(path))
@@ -166,9 +171,11 @@ int MyFSMgr::importFile(char* path) {
 }
 
 /**
- * TODO Chris: Fill
+ * Search for a free DataBlock. Loops through the FAT and checks every
+ * block if its empty (=0)
  *
- * @return
+ * @return  A pointer to a free DataBlock
+ *          0 If the FileSystem is full
  */
 uint32_t MyFSMgr::findNextFreeBlock() {
     uint32_t result;
@@ -184,7 +191,7 @@ uint32_t MyFSMgr::findNextFreeBlock() {
                 result |= read[m];
             }
 
-            if (result == 0) // 4294967295, wir einigten uns darauf das 0xFFFFFFFF = leer bedeutet
+            if (result == 0) // wir einigten uns darauf das 0 = frei bedeutet
                 return ((i - FAT_START) * 128) + x + DATA_START; // Alles damit wir in die Datenblöcke kommen
         }
     }
@@ -194,21 +201,22 @@ uint32_t MyFSMgr::findNextFreeBlock() {
 }
 
 /**
- * TODO Chris: Fill
+ * Create a Inode of a given file. A Inode contains meta
+ * data about the file.
  *
- * @param path
- * @param blockPointer
+ * @param path The path to the file.
+ * @param blockPointer The pointer to the first DataBlock.
  */
 void MyFSMgr::createInode(char* path, uint32_t blockPointer) {
     char copy[BLOCK_SIZE]; // Max. size - is ALWAYS BLOCK_SIZE (512).
     Inode* node = (Inode*) copy;
     char* pathSegments = strtok(path, "/");
 
-    struct stat meta;
+    struct stat meta;   //Holt sich die meta Daten von einer file.
     stat(path, &meta);
 
     strcpy(node->fileName, pathSegments);
-    node->size = meta.st_size;
+    node->size = meta.st_size;  //Attribut aus den meta informationen
     node->gid = meta.st_gid;
     node->uid = meta.st_uid;
     node->mode = meta.st_mode;
@@ -263,12 +271,15 @@ void MyFSMgr::writeInode(Inode* node) {
 }
 
 /**
- * TODO Chris: Fill
+ * Write a pointer to the given place in the FAT. If one block isn't enough
+ * we need more blocks to address all the data for a single file. Each block
+ * has a pointer to the next DataBlock. This way we have a 'chain' with pointers
+ * to the DataBlocks.
  *
  * 0x00000000 = FREI | 0xFFFFFFFF = BELEGT
  *
- * @param blockPointer
- * @param nextPointer
+ * @param blockPointer  The current position which points to the next position.
+ * @param nextPointer   The next position that points to more data.
  */
 void MyFSMgr::setFATBlockPointer(uint32_t blockPointer, uint32_t nextPointer) {
     blockPointer -= DATA_START;
@@ -296,9 +307,9 @@ void MyFSMgr::setFATBlockPointer(uint32_t blockPointer, uint32_t nextPointer) {
 }
 
 /**
- * TODO Chris: Fill
+ * Write a pointer to the Rootblock in an empty place.
  *
- * @param newPointer
+ * @param newPointer    The pointer that will be filled in the Rootblock.
  */
 void MyFSMgr::writeRootPointer(uint32_t newPointer) {
     char read[BLOCK_SIZE];
@@ -306,7 +317,7 @@ void MyFSMgr::writeRootPointer(uint32_t newPointer) {
     _blockDevice->read(ROOT_BLOCK, read);
     for (int i = 0; i < BLOCK_SIZE; i += 4) {
         uint32_t pointer = read[i] << 24 | read[i + 1] << 16 | read[i + 2] << 8 | read[i + 3];
-
+        //shifting für 4 Byte zahl.
         if (pointer == 0) {
             char data[4];
             memcpy(data, &newPointer, 4);
@@ -349,9 +360,9 @@ bool MyFSMgr::fileExists(char* path) {
 }
 
 /**
- * TODO Chris: Fill
+ * Return the sum of all the pointers to an Inode inside the Rootblock.
  *
- * @return
+ * @return The sum of all pointers. 0 if none.
  */
 int MyFSMgr::rootPointerCount() {
     char read[BLOCK_SIZE];
@@ -361,31 +372,32 @@ int MyFSMgr::rootPointerCount() {
 
     for (int i = 0; i < BLOCK_SIZE; i += 4) {
         uint32_t pointer = read[i] << 24 | read[i + 1] << 16 | read[i + 2] << 8 | read[i + 3];
-        if (pointer != 0)
+        if (pointer != 0)   //Bit shifting zum zusammensetzen der 4Byte langen int Zahl.
             sum++;
     }
     return sum;
 }
 
 /**
- * TODO Chris: Description...
+ * Return the following pointer of an Inode from the Rootblock.
  *
- * @param position -1 = Erster Treffer
- *                 PointerPosition = Es wird die NÄCHSTE zurückgegeben (damit lücken übersprungen werden, wenn man z.B. etwas löscht)
- * @return 0 = war der letzte Pointer sonst gibt es immer den nächsten Pointer
+ * @param   oldPointer The pointer of the old Inode. If set to -1 return the first Inode pointer.
+ *
+ * @return  0 if it was the last Pointer.
+ *          else the pointer to the next Inode.
  */
-uint32_t MyFSMgr::readNextRootPointer(uint32_t position) {
+uint32_t MyFSMgr::readNextRootPointer(uint32_t oldPointer) {
     char read[BLOCK_SIZE];
 
     _blockDevice->read(ROOT_BLOCK, read);
     for (int i = 0; i < BLOCK_SIZE; i += 4) {
         uint32_t pointer = read[i] << 24 | read[i + 1] << 16 | read[i+2] << 8 | read[i + 3];
-
-        if (pointer != 0 && position == MAX_UINT)
+        //Bit shifting zum zusammensetzen der 4Byte langen int Zahl.
+        if (pointer != 0 && oldPointer == MAX_UINT)
             return pointer;
 
-        if (pointer == position)
-            position = MAX_UINT;
+        if (pointer == oldPointer)
+            oldPointer = MAX_UINT;
     }
 
     return 0;
@@ -399,8 +411,8 @@ uint32_t MyFSMgr::readNextRootPointer(uint32_t position) {
  */
 uint32_t MyFSMgr::readFAT(uint32_t blockPointer){
     blockPointer -= DATA_START;
-    int offsetBlockNR = blockPointer / 128;
-    int offsetBlockPos = blockPointer % 128;
+    int offsetBlockNR = blockPointer / 128; //128 Pointer pro Block da ganzzahl Ergebnis = Block
+    int offsetBlockPos = blockPointer % 128;//Position in dem Block
 
     char read[512];
     _blockDevice->read(FAT_START + offsetBlockNR, read); // FAT Start + Offset des Blocks
@@ -511,7 +523,7 @@ void MyFSMgr::removeRootPointer(uint32_t delPointer) {
 int MyFSMgr::moveBuffer(DataBuffer* db, int off) {
     char read[BLOCK_SIZE];
     LOGF("%u\n", db->dataPointer);
-    int blockOffset = off / BLOCK_SIZE; //The Block that should the Buffer contains
+    uint32_t blockOffset = off / BLOCK_SIZE; //The Block that should the Buffer contains
     if (blockOffset == db->blockNumber)
         return 0;
 
