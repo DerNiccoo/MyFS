@@ -91,6 +91,7 @@ void MyFSMgr::writeSuperBlock() {
     sb->size = SYSTEM_SIZE;
     sb->pointerData = DATA_START;
     sb->pointerFat = FAT_START;
+    sb->pointerRoot = ROOT_BLOCK;
     sb->pointerNode = NODE_START;
     sb->fileCount = 0;
 
@@ -414,7 +415,7 @@ uint32_t MyFSMgr::readFAT(uint32_t blockPointer){
     int offsetBlockNR = blockPointer / 128; //128 Pointer pro Block da ganzzahl Ergebnis = Block
     int offsetBlockPos = blockPointer % 128;//Position in dem Block
 
-    char read[512];
+    char read[BLOCK_SIZE];
     _blockDevice->read(FAT_START + offsetBlockNR, read); // FAT Start + Offset des Blocks
 
 
@@ -452,7 +453,7 @@ Inode* MyFSMgr::readNode(uint32_t nodePointer){
  * @param nodePointer The Pointer of the file to remove.
  */
 void MyFSMgr::removeFile(uint32_t nodePointer) {
-    char copy[512];
+    char copy[BLOCK_SIZE];
     Inode* node = (Inode*)copy;
     _blockDevice->read(nodePointer, (char*)node); // Node die gelöscht werden soll
 
@@ -474,7 +475,7 @@ void MyFSMgr::removeFile(uint32_t nodePointer) {
  * @param delPointer The pointer that should be deleted.
  */
 void MyFSMgr::removeFatPointer(uint32_t delPointer) {
-    char read[512];
+    char read[BLOCK_SIZE];
 
     for (uint32_t i = FAT_START; i < FAT_ENDE; i++){
         _blockDevice->read(i, read);
@@ -499,7 +500,7 @@ void MyFSMgr::removeFatPointer(uint32_t delPointer) {
  * @param delPointer The pointer that should be deleted.
  */
 void MyFSMgr::removeRootPointer(uint32_t delPointer) {
-    char read[512];
+    char read[BLOCK_SIZE];
 
     _blockDevice->read(ROOT_BLOCK, read);
     for (int i = 0; i < 512; i+=4) {

@@ -24,14 +24,15 @@
 // Definitions
 static int const NAME_LENGTH      = 255; // Max. length of a filename
 static int const BLOCK_SIZE       = 512; // Logical Block Size
+static int const BLOCK_COUNT      = 512;
 
-static int const NUM_DIR_ENTRIES  =   5; // Max. directory entries
+static int const NUM_DIR_ENTRIES  =  64; // Max. directory entries
 
 static int const NUM_OPEN_FILES   =  64; // Max. open files per MyFS container file
 
 static uint32_t const MAX_UINT    =  -1;
 static uint32_t const SIZE        =  MAX_UINT;
-static uint32_t const SYSTEM_SIZE =  32 * 512;
+static uint32_t const SYSTEM_SIZE =  BLOCK_SIZE * BLOCK_COUNT;
 
 static uint32_t const FAT_START   =  1;
 static uint32_t const FAT_SIZE    =  (SYSTEM_SIZE / BLOCK_SIZE) / (BLOCK_SIZE / 4);
@@ -48,6 +49,7 @@ struct Superblock {
     uint32_t size;
     uint32_t pointerFat;
     uint32_t pointerNode;
+    uint32_t pointerRoot;
     uint32_t pointerData;
     uint32_t fileCount;
 };

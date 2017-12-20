@@ -104,17 +104,18 @@ int MyFS::fuseUnlink(const char *path) {
     LOGM();
 
     uint32_t pointer = -1;
-    char copy[512];
+    char copy[BLOCK_SIZE];
     Inode* node = (Inode*)copy;
     path++;
     while ((pointer = MyFSMgr::instance()->readNextRootPointer(pointer)) != 0) {
         MyFSMgr::BDInstance()->read(pointer, (char*)node);
-
+        LOGF("Filname durchsucht: %s\n", node->fileName);
         if (strcmp(node->fileName, path) == 0) {
             MyFSMgr::instance()->removeFile(pointer);
             return 0;
         }
     }
+    LOGF("pointer: %i\n", pointer);
     return 0;    //TODO: ErrorCode
 }
 

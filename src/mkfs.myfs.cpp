@@ -36,7 +36,7 @@ int main(int argc, char* argv[]) {
 
     LOG("Initialize block device...");
     MyFSMgr::instance()->BDInstance()->create(containerFilePath);
-    MyFSMgr::instance()->fillBlocks(0, 16);
+    MyFSMgr::instance()->fillBlocks(0, BLOCK_COUNT);
     MyFSMgr::instance()->writeSuperBlock();
 
     LOG("Copying files into container file...");
