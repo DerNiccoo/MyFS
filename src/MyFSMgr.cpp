@@ -288,23 +288,30 @@ void MyFSMgr::setFATBlockPointer(uint32_t blockPointer, uint32_t nextPointer) {
     int offsetBlockPos = blockPointer % 128;
 
     char read[BLOCK_SIZE];
+
     _blockDevice->read(FAT_START + offsetBlockNR, read);
 
-    char data[4];
-    if (nextPointer != 0) {
-        memcpy(data, &nextPointer,sizeof(uint32_t));
-    } else {
-        for (int i = 0; i < 4; i++)
-            data[i] = 0;
-    }
+    FATBlock* fat = (FATBlock*) read;
 
-    int k = 0;
-    for (int i = (4 * offsetBlockPos); i < (4 * (offsetBlockPos + 1)); i++) {
-        read[i] = data[k];
-        k++;
-    }
 
-    _blockDevice->write(FAT_START + offsetBlockNR, read);
+    fat->pointer[offsetBlockPos]= nextPointer;
+
+
+//    char data[4];
+//    if (nextPointer != 0) {
+//        memcpy(data, &nextPointer,sizeof(uint32_t));
+//    } else {
+//        for (int i = 0; i < 4; i++)
+//            data[i] = 0;
+//    }
+
+//    int k = 0;
+//    for (int i = (4 * offsetBlockPos); i < (4 * (offsetBlockPos + 1)); i++) {
+//        read[i] = data[k];
+//        k++;
+//    }
+
+    _blockDevice->write(FAT_START + offsetBlockNR, (char*) fat);
 }
 
 /**
@@ -417,9 +424,11 @@ uint32_t MyFSMgr::readFAT(uint32_t blockPointer){
 
     char read[BLOCK_SIZE];
     _blockDevice->read(FAT_START + offsetBlockNR, read); // FAT Start + Offset des Blocks
+    FATBlock* fat = (FATBlock*) read;
 
+    uint32_t pointer = fat->pointer[offsetBlockPos];
 
-    uint32_t pointer = read[4 * offsetBlockPos+3] << 24 | read[4 * offsetBlockPos+2] << 16 | read[4 * offsetBlockPos+1] << 8 | read[4 * offsetBlockPos+0];
+//    uint32_t pointer = read[4 * offsetBlockPos+3] << 24 | read[4 * offsetBlockPos+2] << 16 | read[4 * offsetBlockPos+1] << 8 | read[4 * offsetBlockPos+0];
 
     return pointer;
 }
@@ -458,13 +467,21 @@ void MyFSMgr::removeFile(uint32_t nodePointer) {
     _blockDevice->read(nodePointer, (char*)node); // Node die gelöscht werden soll
 
     uint32_t pointer = node->pointer;
-    fillBlocks(pointer, pointer + 1);
+    uint32_t oldpointer = pointer;
+    LOGF("removed File: %i\n", pointer);
+    fillBlocks(pointer, pointer + 1); //Der erste Datenblock wird gelöscht.
 
-    while ((pointer = readFAT(pointer)) != UINT32_MAX) { // Die Datei war größer als 1 Block, daher einträge in der FAT die gelöscht werden müssen
-        fillBlocks(pointer, pointer + 1);
-        removeFatPointer(pointer);
+
+    while ((pointer = readFAT(pointer)) != MAX_UINT) { // Die Datei war größer als 1 Block, daher einträge in der FAT die gelöscht werden müssen
+
+        fillBlocks(pointer, pointer + 1); //Der Folgeblock wird gelöscht.
+//        removeFatPointer(oldpointer);
+        setFATBlockPointer(oldpointer, 0); // Der alte FAT Pointer wird gelöscht.
+        oldpointer = pointer;
     }
-
+    LOGF("Max_unit?: %d\n", pointer);
+    LOGF("Removed FATPOINTER: %i\n", oldpointer);
+    setFATBlockPointer(oldpointer,0); // Der End Fatpointer wird geslöscht (der mit Max_uint)
     removeRootPointer(nodePointer);           // löschen im RootBlock
     fillBlocks(nodePointer, nodePointer + 1); // löschen der Node
 }
@@ -475,22 +492,28 @@ void MyFSMgr::removeFile(uint32_t nodePointer) {
  * @param delPointer The pointer that should be deleted.
  */
 void MyFSMgr::removeFatPointer(uint32_t delPointer) {
-    char read[BLOCK_SIZE];
+    setFATBlockPointer(delPointer, 0);
 
-    for (uint32_t i = FAT_START; i < FAT_ENDE; i++){
-        _blockDevice->read(i, read);
-        for (int j = 0; j < 512; j+=4) {
-            uint32_t pointer = read[j] << 24 | read[j+1] << 16 | read[j+2] << 8 | read[j+3];
 
-            if (pointer == delPointer) {
-                for (int k = i; k < (j + 4); k++) // den Pointer mit dem Wert nullen.
-                    read[k] = 0;
 
-                _blockDevice->write(i, read); // neuen block schreiben
-                return;
-            }
-        }
-    }
+
+
+
+
+//  for (uint32_t i = FAT_START; i < FAT_ENDE; i++){
+//        _blockDevice->read(i, read);
+//        for (int j = 0; j < 512; j+=4) {
+//            uint32_t pointer = read[j] << 24 | read[j+1] << 16 | read[j+2] << 8 | read[j+3];
+//
+//            if (pointer == delPointer) {
+//                for (int k = i; k < (j + 4); k++) // den Pointer mit dem Wert nullen.
+//                    read[k] = 0;
+//
+//                _blockDevice->write(i, read); // neuen block schreiben
+//                return;
+//            }
+//        }
+//    }
 
 }
 

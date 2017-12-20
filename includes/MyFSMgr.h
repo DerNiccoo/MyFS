@@ -54,6 +54,10 @@ struct Superblock {
     uint32_t fileCount;
 };
 
+struct FATBlock{
+    uint32_t pointer[BLOCK_SIZE/4];
+};
+
 struct Inode {
     char fileName[NAME_LENGTH]; // Max. 255 bytes (FileName + 24 bytes) (2 for the length)
     uint32_t size;              // 4 byte
