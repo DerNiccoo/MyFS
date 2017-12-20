@@ -152,6 +152,8 @@ int MyFSMgr::importFile(char* path) {
     char data[BLOCK_SIZE];
     if (strlen(fileContent) > BLOCK_SIZE) {         // Wir benötigen mehr als nur ein Block
         while((unsigned)(position * BLOCK_SIZE) < strlen(fileContent)) {
+
+
             for (int i = 0; i < BLOCK_SIZE; i++)    // Füllen der Daten zum schreiben
                 data[i] = fileContent[(position * BLOCK_SIZE) + i];
 
@@ -159,8 +161,10 @@ int MyFSMgr::importFile(char* path) {
             setFATBlockPointer(blockPointer, MAX_UINT);   // Block auf belegt setzen
             oldPointer = blockPointer;
 
-            blockPointer = findNextFreeBlock();           // Neuen Block holen
-            setFATBlockPointer(oldPointer, blockPointer); // Verweiß setzen
+            if((unsigned)((position+1) * BLOCK_SIZE) < strlen(fileContent)){    //Wenn noch ein Block benötigt wird.
+                blockPointer = findNextFreeBlock();           // Neuen Block holen
+                setFATBlockPointer(oldPointer, blockPointer); // Verweiß setzen
+            }
             position++;
         }
     } else { // Izi. nur ein Block
@@ -293,6 +297,7 @@ void MyFSMgr::setFATBlockPointer(uint32_t blockPointer, uint32_t nextPointer) {
 
     FATBlock* fat = (FATBlock*) read;
 
+    LOGF("SET: %i WITH %i\n", blockPointer+DATA_START,nextPointer);
 
     fat->pointer[offsetBlockPos]= nextPointer;
 

@@ -109,7 +109,6 @@ int MyFS::fuseUnlink(const char *path) {
     path++;
     while ((pointer = MyFSMgr::instance()->readNextRootPointer(pointer)) != 0) {
         MyFSMgr::BDInstance()->read(pointer, (char*)node);
-        LOGF("Filname durchsucht: %s\n", node->fileName);
         if (strcmp(node->fileName, path) == 0) {
             MyFSMgr::instance()->removeFile(pointer);
             return 0;
