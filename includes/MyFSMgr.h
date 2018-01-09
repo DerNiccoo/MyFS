@@ -121,7 +121,7 @@ public:
     void removeFile(uint32_t nodePointer);
     uint32_t readNextRootPointer(uint32_t position);
     uint32_t readFAT(uint32_t blockPointer);
-    void createNewInode(const char* path);
+    void createNewInode(char* path, mode_t mode);
     int moveBuffer(DataBuffer* db, int offset);
     int moveBuffer(DataBuffer* db);
     int copyDataToBuffer(char* buf, char read[512], int from, int to, int offset);

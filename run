@@ -1,4 +1,4 @@
 #!/bin/bash
 rm dummy.bin
 make -f Makefile
-./mkfs.myfs dummy.bin data1.txt data2.txt data3.txt data1.txt
+./mkfs.myfs dummy.bin data1.txt data2.txt data3.txt

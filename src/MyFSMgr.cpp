@@ -240,18 +240,27 @@ void MyFSMgr::createInode(char* path, uint32_t blockPointer) {
  *
  * @param path The name of the file.
  */
-void MyFSMgr::createNewInode(const char* path){	//Leere Datei, hat sie einen BlockPointer?
+void MyFSMgr::createNewInode(char* path, mode_t mode){	//Leere Datei, hat sie einen BlockPointer?
     char copy[BLOCK_SIZE];
     Inode* node = (Inode*) copy;
 
-    strcpy(node->fileName, path);
+    char* fileName = basename(path);
+    LOGF("Creating file: %s\n", fileName);
+
+    struct stat meta;
+    stat(path, &meta);
+
+    strcpy(node->fileName, fileName);
     node->size = 0;
-    node->gid = getgid();
-    node->uid = getuid();
-    node->mode = S_IFDIR | 0755;
-    node->atim = time( NULL );
-    node->mtim = time( NULL );
-    node->ctim = time( NULL );
+    node->gid = meta.st_gid;
+    node->uid = meta.st_uid;
+    node->mode = mode;
+
+    node->atim = meta.st_atim.tv_sec;
+    node->mtim = meta.st_mtim.tv_sec;
+    node->ctim = meta.st_ctim.tv_sec;
+
+    LOGF("Write Inode of file: %s\n", node->fileName);
 
     writeInode(node);
 }

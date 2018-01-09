@@ -81,17 +81,8 @@ int MyFS::fuseReadlink(const char *path, char *link, size_t size) {
 
 int MyFS::fuseMknod(const char *path, mode_t mode, dev_t dev) {
     LOGM();
-    /*
-    path++;
 
-    string s1, s2 = "swp";
-    s1.append(path);
-    if (s1.find(s2) != std::string::npos)
-    	return 0;
-
-    LOGF("path: %s\n", path);
-    mode = S_IFDIR | 0755;
-    MyFSMgr::instance()->createNewInode(path);*/
+    MyFSMgr::instance()->createNewInode((char*) path, mode);
     return 0;
 }
 
