@@ -186,45 +186,28 @@ int MyFS::fuseOpen(const char *path, struct fuse_file_info *fileInfo) {
 
 int MyFS::fuseRead(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fileInfo) {
     LOGM();
+    LOGF("size: %u | offset: %u \n", size, offset);
 
     int fh = fileInfo->fh;
+    int bufferOffset = 0;
+    MyFSMgr::instance()->moveBuffer(&dataBuffer[fh], offset);   //Before start reading move Buffer to the requestet Block
+    int maxRead = 0;
 
-    MyFSMgr::instance()->moveBuffer(&dataBuffer[fh], offset);
-    LOGF("path: %s, size: %u, offset: %u, fileHandle: %u\n", path, size, offset, fh);
+    while (size > 0) {  //Loop through the requestet size
+        if (size >= BLOCK_SIZE) //Can we read 512 Byte or less?
+            maxRead = BLOCK_SIZE;
+        else
+            maxRead = BLOCK_SIZE - size;
 
-    if (size + offset > dataBuffer[fh].node->size) { //Die gesamte Datei wurde angefordert vom offset an
-
-    } else {                                //Es soll nur ein Teil der gesamten Datei gelesen werden
-
+        if (maxRead == 0)   //This should never happen, but just to avoid an endless loop
+            break;
+        LOGF("from: %u | TO: %u | bufferOffset: %u\n", offset % 512, maxRead, bufferOffset);    //We copy byte by byte for easier handling
+        bufferOffset = MyFSMgr::instance()->copyDataToBuffer(buf, dataBuffer[fh].data, offset % 512, maxRead, bufferOffset);
+        size -= maxRead;
+        MyFSMgr::instance()->moveBuffer(&dataBuffer[fh]);
     }
 
-    MyFSMgr::instance()->copyDataToBuffer(buf, dataBuffer[fh].data, 0, 512, 0);
-    //memcpy(buf, dataBuffer[fh].data, 512);
-    return 512;
-    /*
-
-    uint32_t pointer = -1;
-    char copy[BLOCK_SIZE]; // Max. größe 512 und auch immer 512 groß
-    char read[BLOCK_SIZE];
-    Inode* node = (Inode*)copy;
-    path++;
-    while ((pointer = MyFSMgr::instance()->readNextRootPointer(pointer)) != 0){
-        MyFSMgr::BDInstance()->read(pointer, (char*)node);
-
-        if (strcmp(node->fileName, path) == 0) {
-            uint32_t pointer = node->pointer;
-            uint32_t off = 0;
-            do {
-                MyFSMgr::BDInstance()->read(pointer, read);
-                memcpy(buf + off, read, BLOCK_SIZE);
-                off = off + BLOCK_SIZE;
-            } while ((pointer = MyFSMgr::instance()->readFAT(pointer)) != UINT32_MAX);
-
-            return node->size;
-        }
-    }*/
-
-    return 0; // TODO: ErrorCode
+    return bufferOffset;
 }
 
 int MyFS::fuseWrite(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fileInfo) {
