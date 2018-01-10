@@ -73,8 +73,10 @@ void MyFSMgr::fillBlocks(uint32_t startBlockIndex, uint32_t endBlockIndex) {
     for (int i = 0; i < BLOCK_SIZE; i++)
         rawBlock[i] = 0; // 255 = 1
 
-    for (uint32_t i = startBlockIndex; i < endBlockIndex; i++)
+    for (uint32_t i = startBlockIndex; i < endBlockIndex; i++){
+        LOGF("Filled Block %i\n",i);
         _blockDevice->write(i, rawBlock);
+    }
 }
 
 /**
@@ -435,21 +437,39 @@ void MyFSMgr::setFATBlockPointer(uint32_t blockPointer, uint32_t nextPointer) {
  */
 void MyFSMgr::writeRootPointer(uint32_t newPointer) {
     char read[BLOCK_SIZE];
-
     _blockDevice->read(ROOT_BLOCK, read);
-    for (int i = 0; i < BLOCK_SIZE; i += 4) {
-        uint32_t pointer = read[i] << 24 | read[i + 1] << 16 | read[i + 2] << 8 | read[i + 3];
-        //shifting für 4 Byte zahl.
-        if (pointer == 0) {
-            char data[4];
-            memcpy(data, &newPointer, 4);
-            for (int k = 0; k < 4; k++) // Damit die zahlen im normalen Style sind 0011 = 3 und nicht 1100 = 3
-                read[i + 3 - k] = data[k];
+    RootDirect* root = (RootDirect*)read;
+    uint32_t i= 0;
 
-            _blockDevice->write(ROOT_BLOCK, read);
-            return;
-        }
+    while(root->pointer[i] != 0 && i < NUM_DIR_ENTRIES){
+        i++;
     }
+    if(i > NUM_DIR_ENTRIES){
+       LOG("Über maxEntries hinaus");
+    }
+
+    root->pointer[i] = newPointer;
+    _blockDevice->write(ROOT_BLOCK, (char*)root);
+
+
+
+
+
+
+//    _blockDevice->read(ROOT_BLOCK, read);
+//    for (int i = 0; i < BLOCK_SIZE; i += 4) {
+//        uint32_t pointer = read[i] << 24 | read[i + 1] << 16 | read[i + 2] << 8 | read[i + 3];
+//        //shifting für 4 Byte zahl.
+//        if (pointer == 0) {
+//            char data[4];
+//            memcpy(data, &newPointer, 4);
+//            for (int k = 0; k < 4; k++) // Damit die zahlen im normalen Style sind 0011 = 3 und nicht 1100 = 3
+//                read[i + 3 - k] = data[k];
+//
+//            _blockDevice->write(ROOT_BLOCK, read);
+//            return;
+//        }
+//    }
 }
 
 bool MyFSMgr::findInode(char* fileName, Inode* node, uint32_t* nodePointer){
@@ -522,19 +542,35 @@ int MyFSMgr::rootPointerCount() {
  */
 uint32_t MyFSMgr::readNextRootPointer(uint32_t oldPointer) {
     char read[BLOCK_SIZE];
-
     _blockDevice->read(ROOT_BLOCK, read);
-    for (int i = 0; i < BLOCK_SIZE; i += 4) {
-        uint32_t pointer = read[i] << 24 | read[i + 1] << 16 | read[i+2] << 8 | read[i + 3];
-        //Bit shifting zum zusammensetzen der 4Byte langen int Zahl.
-        if (pointer != 0 && oldPointer == MAX_UINT)
-            return pointer;
-
-        if (pointer == oldPointer)
-            oldPointer = MAX_UINT;
+    RootDirect* root = (RootDirect*)read;
+    uint32_t i= 0;
+    if (oldPointer == MAX_UINT){
+        return root->pointer[0];
+    }
+    while(root->pointer[i] != oldPointer && i < NUM_DIR_ENTRIES){
+        i++;
     }
 
-    return 0;
+    if(i >= NUM_DIR_ENTRIES){
+        return -1;
+    }
+
+    return root->pointer[i+1];
+
+
+//    _blockDevice->read(ROOT_BLOCK, read);
+//    for (int i = 0; i < BLOCK_SIZE; i += 4) {
+//        uint32_t pointer = read[i] << 24 | read[i + 1] << 16 | read[i+2] << 8 | read[i + 3];
+//        //Bit shifting zum zusammensetzen der 4Byte langen int Zahl.
+//        if (pointer != 0 && oldPointer == MAX_UINT)
+//            return pointer;
+//
+//        if (pointer == oldPointer)
+//            oldPointer = MAX_UINT;
+//    }
+//
+//    return 0;
 }
 
 /**

@@ -126,7 +126,7 @@ int BlockDevice::close() {
  */
 int BlockDevice::read(u_int32_t blockNo, char *buffer) {
     seekto(this->contFile, blockNo);
-
+    LOGF("read: %u\n",blockNo);
     readbuf(this->contFile, buffer, this->blockSize);
     return 0;
 }
