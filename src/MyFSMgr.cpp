@@ -142,38 +142,134 @@ int MyFSMgr::importFile(char* path) {
     fread(fileContent, fsize, 1, f);
     fclose(f);
 
-    int position = 0;
+//    int position = 0;
     uint32_t blockPointer = findNextFreeBlock();
     //if (blockPointer == 0) // TODO Chris: Handle errors like FileSystem full
     //    return -1;
 
-    uint32_t oldPointer;
+//    uint32_t oldPointer;
     createInode(path, blockPointer);
-    char data[BLOCK_SIZE];
-    if (strlen(fileContent) > BLOCK_SIZE) {         // Wir benötigen mehr als nur ein Block
-        while((unsigned)(position * BLOCK_SIZE) < strlen(fileContent)) {
+//    char data[BLOCK_SIZE];
 
+    LOGF("Importing file: %s\n", path);
 
-            for (int i = 0; i < BLOCK_SIZE; i++)    // Füllen der Daten zum schreiben
-                data[i] = fileContent[(position * BLOCK_SIZE) + i];
+    write(fileContent, blockPointer);
 
-            _blockDevice->write(blockPointer, data);
-            setFATBlockPointer(blockPointer, MAX_UINT);   // Block auf belegt setzen
-            oldPointer = blockPointer;
-
-            if((unsigned)((position+1) * BLOCK_SIZE) < strlen(fileContent)){    //Wenn noch ein Block benötigt wird.
-                blockPointer = findNextFreeBlock();           // Neuen Block holen
-                setFATBlockPointer(oldPointer, blockPointer); // Verweiß setzen
-            }
-            position++;
-        }
-    } else { // Izi. nur ein Block
-        _blockDevice->write(blockPointer, fileContent);
-        setFATBlockPointer(blockPointer, MAX_UINT);
-    }
+//    if (strlen(fileContent) > BLOCK_SIZE) {         // Wir benötigen mehr als nur ein Block
+//        while((unsigned)(position * BLOCK_SIZE) < strlen(fileContent)) {
+//
+//
+//            for (int i = 0; i < BLOCK_SIZE; i++)    // Füllen der Daten zum schreiben
+//                data[i] = fileContent[(position * BLOCK_SIZE) + i];
+//
+//            _blockDevice->write(blockPointer, data);
+//            setFATBlockPointer(blockPointer, MAX_UINT);   // Block auf belegt setzen
+//            oldPointer = blockPointer;
+//
+//            if((unsigned)((position+1) * BLOCK_SIZE) < strlen(fileContent)){    //Wenn noch ein Block benötigt wird.
+//                blockPointer = findNextFreeBlock();           // Neuen Block holen
+//                setFATBlockPointer(oldPointer, blockPointer); // Verweiß setzen
+//            }
+//            position++;
+//        }
+//    } else { // Izi. nur ein Block
+//        _blockDevice->write(blockPointer, fileContent);
+//        setFATBlockPointer(blockPointer, MAX_UINT);
+//    }
     changeSBFileCount(1);
     return 0;
 }
+
+
+void MyFSMgr::write(char* content, uint32_t startBlock){
+//    nimm ersten 512 Byte schreibe in Block
+//    größer?? --> such neuen Block, setze Fatpointer, Fülle inhalt, wiederhole
+
+//    uint32_t blocks = 0;
+    char write[BLOCK_SIZE];
+//    for (int i = 0; i < BLOCK_SIZE; i++ ){
+//        write[i] =
+//    }
+    memset(&write[0], 0, BLOCK_SIZE);
+    uint32_t oldBlock =0;
+    uint32_t writtenBlock = startBlock;
+    uint32_t blocksUsed = 0;
+    uint32_t sizeToCopy;
+    LOGM();
+
+    while (blocksUsed * BLOCK_SIZE < strlen(content)){
+
+        if(writtenBlock != startBlock){
+            setFATBlockPointer(oldBlock, writtenBlock);
+        }
+
+        sizeToCopy = strlen(content) - blocksUsed*BLOCK_SIZE;
+
+        if (sizeToCopy > BLOCK_SIZE){
+            sizeToCopy = BLOCK_SIZE;
+        }
+
+        memcpy(write, content + (blocksUsed * BLOCK_SIZE), sizeToCopy);
+
+        _blockDevice->write(writtenBlock, write);
+        setFATBlockPointer(writtenBlock, MAX_UINT);
+        oldBlock = writtenBlock;
+        writtenBlock = findNextFreeBlock();
+
+        blocksUsed++;
+    }
+
+
+}
+
+uint32_t MyFSMgr::changeFileContent(char *path, char *buf, uint32_t size, uint32_t offset){
+    char* fileName = basename(path);
+    uint32_t inodePointer;
+    char nodechar[BLOCK_SIZE];
+    char copy[BLOCK_SIZE];
+    char* bufcopy;
+    Inode* node = (Inode*) nodechar;
+    if(!findInode(fileName, node, &inodePointer)){
+        LOGF("Inode zum schreiben nicht gefunden '%s'.\n", fileName);
+        return -1;  //TODO file existiert nicht
+    }
+
+    uint32_t pointer = node->pointer;
+
+    while (offset>= BLOCK_SIZE){
+        pointer = readFAT(pointer);
+        offset -= BLOCK_SIZE;
+    }
+
+
+    if(offset != 0){
+        // Inhalt des aktuellen Blocks (bis offseet) vorene an buff dranhängen;
+        LOGF("offset ist nicht durch 512 teilbar (%i) -> innerhalb eines Blockes\n", offset);
+        _blockDevice->read(pointer, copy);
+        bufcopy = new char[offset + size];
+        memcpy(bufcopy, copy, offset);
+        memcpy(bufcopy+offset, buf, size);
+
+    }else{
+        bufcopy = new char[sizeof(buf)];
+        memcpy(bufcopy, buf, size);
+    }
+
+
+
+
+    LOGF("Pointer wo rein geschrieben wird: %d, buffer: %s, (Alte size: %i)\n", pointer,bufcopy, node->size);
+    write(bufcopy,pointer);
+
+    node->size = offset + size;
+    LOGF("New Inode size: %i\n", node->size);
+    _blockDevice->write(inodePointer, (char*) node);
+    delete[] bufcopy;
+    return size;
+
+}
+
+
 
 /**
  * Search for a free DataBlock. Loops through the FAT and checks every
@@ -259,6 +355,10 @@ void MyFSMgr::createNewInode(char* path, mode_t mode){	//Leere Datei, hat sie ei
     node->atim = meta.st_atim.tv_sec;
     node->mtim = meta.st_mtim.tv_sec;
     node->ctim = meta.st_ctim.tv_sec;
+
+    node->pointer = findNextFreeBlock();
+
+    setFATBlockPointer(node->pointer, MAX_UINT);
 
     LOGF("Write Inode of file: %s\n", node->fileName);
 
@@ -352,6 +452,26 @@ void MyFSMgr::writeRootPointer(uint32_t newPointer) {
     }
 }
 
+bool MyFSMgr::findInode(char* fileName, Inode* node, uint32_t* nodePointer){
+    uint32_t position = MAX_UINT;
+
+
+    while((position = readNextRootPointer(position)) != 0){
+       LOGF("Inodepointer: %u\n", position);
+       _blockDevice->read(position, (char*)node);
+       if (strcmp(fileName, node->fileName) == 0) {
+
+           *nodePointer = position;
+           return true;
+       }
+    }
+    return false;
+
+}
+
+
+
+
 /**
  * Check if the provided file exists inside the BlockDevice.
  *
@@ -360,8 +480,8 @@ void MyFSMgr::writeRootPointer(uint32_t newPointer) {
  */
 bool MyFSMgr::fileExists(char* path) {
     char copy[BLOCK_SIZE];
+    uint32_t inodePointer;
     Inode* node = (Inode*)copy;
-    uint32_t position = MAX_UINT;
     char* pathSegments = strtok(path, "/");
     char fileName[NAME_LENGTH];
 
@@ -370,15 +490,7 @@ bool MyFSMgr::fileExists(char* path) {
     if (rootPointerCount() == 0) // The first file can't be a duplicate
         return false;
 
-    while((position = readNextRootPointer(position)) != 0){
-
-        _blockDevice->read(position, (char*)node);
-        LOGF("%s : %s\n", fileName, node->fileName);
-        if (strcmp(fileName, node->fileName) == 0)
-            return true;
-    }
-
-    return false;
+    return findInode(fileName, node, &inodePointer);
 }
 
 /**

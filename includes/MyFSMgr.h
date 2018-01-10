@@ -24,7 +24,7 @@
 // Definitions
 static int const NAME_LENGTH      = 255; // Max. length of a filename
 static int const BLOCK_SIZE       = 512; // Logical Block Size
-static int const BLOCK_COUNT      = 512;
+static int const BLOCK_COUNT      = 15900;
 
 static int const NUM_DIR_ENTRIES  =  64; // Max. directory entries
 
@@ -99,10 +99,12 @@ private:
 
     void createInode(char* path, uint32_t blockPointer);
     void writeInode(Inode* node);
+    void write(char* content, uint32_t startBlock);
     void writeRootPointer(uint32_t newPointer);
     void setFATBlockPointer(uint32_t blockPointer, uint32_t nextPointer);
     void removeFatPointer(uint32_t delPointer);
     void removeRootPointer(uint32_t delPointer);
+
 
 public:
     static MyFSMgr* instance();
@@ -117,11 +119,13 @@ public:
 
     // Operations
     int importFile(char* path);
+    bool findInode(char* fileName, Inode* node, uint32_t* nodePointer);
     bool fileExists(char* path);
     void removeFile(uint32_t nodePointer);
     uint32_t readNextRootPointer(uint32_t position);
     uint32_t readFAT(uint32_t blockPointer);
     void createNewInode(char* path, mode_t mode);
+    uint32_t changeFileContent(char *path, char *buf, uint32_t size, uint32_t offset);
     int moveBuffer(DataBuffer* db, int offset);
     int moveBuffer(DataBuffer* db);
     int copyDataToBuffer(char* buf, char read[512], int from, int to, int offset);

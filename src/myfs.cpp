@@ -177,7 +177,7 @@ int MyFS::fuseOpen(const char *path, struct fuse_file_info *fileInfo) {
 
 int MyFS::fuseRead(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fileInfo) {
     LOGM();
-    LOGF("size: %u | offset: %u \n", size, offset);
+    LOGF("reading file: %s | size: %u | offset: %u\n", path, size, offset);
 
     int fh = fileInfo->fh;
     int bufferOffset = 0;
@@ -197,13 +197,16 @@ int MyFS::fuseRead(const char *path, char *buf, size_t size, off_t offset, struc
         size -= maxRead;
         MyFSMgr::instance()->moveBuffer(&dataBuffer[fh]);
     }
+    LOGF("buf größe : %i\n", strlen(buf));
 
     return bufferOffset;
 }
 
 int MyFS::fuseWrite(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fileInfo) {
     LOGM();
-    return 0;
+    LOGF("path: '%s', offset: %i, buf: \n'%s'\n", basename(path), (int)offset, buf);
+
+    return MyFSMgr::instance()->changeFileContent((char*)path, (char*)buf, size, offset);
 }
 
 int MyFS::fuseStatfs(const char *path, struct statvfs *statInfo) {
