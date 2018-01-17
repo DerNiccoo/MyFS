@@ -1,6 +1,10 @@
 # MyFS
 MyFS implementation using libfuse
 
+# Command line args
+-s = Single threaded
+-d = Debug mode
+
 # Use
 - English as language
 - Todo style: TODO Name: Comment
