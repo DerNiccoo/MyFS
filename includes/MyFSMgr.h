@@ -25,7 +25,7 @@
 // Definitions
 static int const NAME_LENGTH      = 255; // Max. length of a filename
 static int const BLOCK_SIZE       = 512; // Logical Block Size
-static int const BLOC_COUNTS      = 512;
+static int const BLOC_COUNTS      = 60000;
 
 static int const NUM_DIR_ENTRIES  =  64; // Max. directory entries
 

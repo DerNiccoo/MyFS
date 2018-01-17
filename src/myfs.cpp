@@ -178,6 +178,8 @@ int MyFS::fuseRead(const char *path, char *buf, size_t size, off_t offset, struc
     LOGF("reading file: %s | size: %u | offset: %u\n", path, size, offset);
 
     int fh = fileInfo->fh;
+    if(dataBuffer[fh].dataPointer == MAX_UINT)
+        return 0;
     int bufferOffset = 0;
     MyFSMgr::instance()->moveBuffer(&dataBuffer[fh], offset);   //Before start reading move Buffer to the requestet Block
     int maxRead = 0;
@@ -186,7 +188,7 @@ int MyFS::fuseRead(const char *path, char *buf, size_t size, off_t offset, struc
 
     uint32_t nodePointer;
 
-    while (size > 0) {  //Loop through the requestet size
+    while (size > 0 && dataBuffer[fh].dataPointer != MAX_UINT) {  //Loop through the requestet size
         if (size >= BLOCK_SIZE) //Can we read 512 Byte or less?
             maxRead = BLOCK_SIZE;
         else
@@ -203,7 +205,7 @@ int MyFS::fuseRead(const char *path, char *buf, size_t size, off_t offset, struc
     MyFSMgr::instance()->findInode((char*)basename(path), node, &nodePointer);
     MyFSMgr::instance()->changeTime(node, true, false, false);
     MyFSMgr::instance()->BDInstance()->write(nodePointer, (char*)node);
-    LOGF("buf größe : %i\n", strlen(buf));
+    LOGF("buf offset : %u\n", bufferOffset);
 
     return bufferOffset;
 }

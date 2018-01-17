@@ -192,7 +192,7 @@ void MyFSMgr::write(char* content, uint32_t startBlock){
 //        write[i] =
 //    }
     char write[BLOCK_SIZE];
-    memset(&write[0], 0, BLOCK_SIZE);
+
     uint32_t oldBlock =0;
     uint32_t writtenBlock = startBlock;
     uint32_t blocksUsed = 0;
@@ -210,7 +210,7 @@ void MyFSMgr::write(char* content, uint32_t startBlock){
         if (sizeToCopy > BLOCK_SIZE){
             sizeToCopy = BLOCK_SIZE;
         }
-
+        memset(&write[0], 0, BLOCK_SIZE);
         memcpy(write, content + (blocksUsed * BLOCK_SIZE), sizeToCopy);
 
         _blockDevice->write(writtenBlock, write);
@@ -246,12 +246,18 @@ uint32_t MyFSMgr::changeFileContent(char *path, char *buf, uint32_t size, uint32
     }
 
     uint32_t pointer = node->pointer;
+    uint32_t oldPointer = 0;
 
     while (offset>= BLOCK_SIZE){
+        oldPointer = pointer;
         pointer = readNextFATPointer(pointer);
         offset -= BLOCK_SIZE;
     }
 
+    if(pointer == MAX_UINT){
+        pointer = findNextFreeBlock();
+        setFATBlockPointer(oldPointer, pointer);
+    }
 
     if(offset != 0){
         // Inhalt des aktuellen Blocks (bis offseet) vorene an buff dranhängen;
@@ -438,7 +444,7 @@ void MyFSMgr::setFATBlockPointer(uint32_t blockPointer, uint32_t nextPointer) {
 
     FATBlock* fat = (FATBlock*) read;
 
-    LOGF("SET: %i WITH %i\n", blockPointer+DATA_START,nextPointer);
+//    LOGF("SET: %i WITH %i\n", blockPointer+DATA_START,nextPointer);
 
     fat->pointer[offsetBlockPos]= nextPointer;
 
