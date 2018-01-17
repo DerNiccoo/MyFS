@@ -74,7 +74,7 @@ void MyFSMgr::fillBlocks(uint32_t startBlockIndex, uint32_t endBlockIndex) {
         rawBlock[i] = 0; // 255 = 1
 
     for (uint32_t i = startBlockIndex; i < endBlockIndex; i++){
-        LOGF("Filled Block %i\n",i);
+//        LOGF("Filled Block %i\n",i);
         _blockDevice->write(i, rawBlock);
     }
 }
@@ -188,10 +188,10 @@ void MyFSMgr::write(char* content, uint32_t startBlock){
 //    größer?? --> such neuen Block, setze Fatpointer, Fülle inhalt, wiederhole
 
 //    uint32_t blocks = 0;
-    char write[BLOCK_SIZE];
 //    for (int i = 0; i < BLOCK_SIZE; i++ ){
 //        write[i] =
 //    }
+    char write[BLOCK_SIZE];
     memset(&write[0], 0, BLOCK_SIZE);
     uint32_t oldBlock =0;
     uint32_t writtenBlock = startBlock;
@@ -214,12 +214,20 @@ void MyFSMgr::write(char* content, uint32_t startBlock){
         memcpy(write, content + (blocksUsed * BLOCK_SIZE), sizeToCopy);
 
         _blockDevice->write(writtenBlock, write);
-        setFATBlockPointer(writtenBlock, MAX_UINT);
         oldBlock = writtenBlock;
-        writtenBlock = findNextFreeBlock();
+        if(readNextFATPointer(writtenBlock) == MAX_UINT || readNextFATPointer(writtenBlock) == 0){
+            setFATBlockPointer(writtenBlock, MAX_UINT);
+            writtenBlock = findNextFreeBlock();
+        } else {
+            writtenBlock = readNextFATPointer(writtenBlock);
+        }
 
         blocksUsed++;
     }
+    if(readNextFATPointer(oldBlock) != 0)
+    deleteFollowingBlocks(oldBlock);
+
+    setFATBlockPointer(oldBlock, MAX_UINT);
 
 
 }
@@ -230,6 +238,7 @@ uint32_t MyFSMgr::changeFileContent(char *path, char *buf, uint32_t size, uint32
     char nodechar[BLOCK_SIZE];
     char copy[BLOCK_SIZE];
     char* bufcopy;
+    uint32_t fileSize = size + offset;
     Inode* node = (Inode*) nodechar;
     if(!findInode(fileName, node, &inodePointer)){
         LOGF("Inode zum schreiben nicht gefunden '%s'.\n", fileName);
@@ -239,7 +248,7 @@ uint32_t MyFSMgr::changeFileContent(char *path, char *buf, uint32_t size, uint32
     uint32_t pointer = node->pointer;
 
     while (offset>= BLOCK_SIZE){
-        pointer = readFAT(pointer);
+        pointer = readNextFATPointer(pointer);
         offset -= BLOCK_SIZE;
     }
 
@@ -248,13 +257,17 @@ uint32_t MyFSMgr::changeFileContent(char *path, char *buf, uint32_t size, uint32
         // Inhalt des aktuellen Blocks (bis offseet) vorene an buff dranhängen;
         LOGF("offset ist nicht durch 512 teilbar (%i) -> innerhalb eines Blockes\n", offset);
         _blockDevice->read(pointer, copy);
-        bufcopy = new char[offset + size];
+        bufcopy = new char[offset + size + 1];
+
         memcpy(bufcopy, copy, offset);
-        memcpy(bufcopy+offset, buf, size);
+        memcpy(bufcopy + offset, buf, size);
+        bufcopy[offset+size] = 0;
+
 
     }else{
-        bufcopy = new char[sizeof(buf)];
+        bufcopy = new char[size + 1];
         memcpy(bufcopy, buf, size);
+        bufcopy[size] = 0;
     }
 
 
@@ -263,7 +276,8 @@ uint32_t MyFSMgr::changeFileContent(char *path, char *buf, uint32_t size, uint32
     LOGF("Pointer wo rein geschrieben wird: %d, buffer: %s, (Alte size: %i)\n", pointer,bufcopy, node->size);
     write(bufcopy,pointer);
 
-    node->size = offset + size;
+    changeTime(node, false, true, true);
+    node->size = fileSize;
     LOGF("New Inode size: %i\n", node->size);
     _blockDevice->write(inodePointer, (char*) node);
     delete[] bufcopy;
@@ -342,6 +356,7 @@ void MyFSMgr::createNewInode(char* path, mode_t mode){	//Leere Datei, hat sie ei
     char copy[BLOCK_SIZE];
     Inode* node = (Inode*) copy;
 
+
     char* fileName = basename(path);
     LOGF("Creating file: %s\n", fileName);
 
@@ -350,13 +365,11 @@ void MyFSMgr::createNewInode(char* path, mode_t mode){	//Leere Datei, hat sie ei
 
     strcpy(node->fileName, fileName);
     node->size = 0;
-    node->gid = meta.st_gid;
-    node->uid = meta.st_uid;
+    node->gid = getgid();
+    node->uid = getuid();
     node->mode = mode;
 
-    node->atim = meta.st_atim.tv_sec;
-    node->mtim = meta.st_mtim.tv_sec;
-    node->ctim = meta.st_ctim.tv_sec;
+    changeTime(node, true, true, true);
 
     node->pointer = findNextFreeBlock();
 
@@ -386,6 +399,23 @@ void MyFSMgr::writeInode(Inode* node) {
     }
 }
 
+
+
+
+void MyFSMgr::changeTime(Inode* node, bool atim, bool mtim, bool ctim){
+    timespec currentTime;
+
+    clock_gettime(CLOCK_REALTIME, &currentTime);
+
+    if(atim)
+    node->atim = currentTime.tv_sec;
+    if(mtim)
+    node->mtim = currentTime.tv_sec;
+    if(ctim)
+    node->ctim = currentTime.tv_sec;
+
+
+}
 /**
  * Write a pointer to the given place in the FAT. If one block isn't enough
  * we need more blocks to address all the data for a single file. Each block
@@ -444,7 +474,7 @@ void MyFSMgr::writeRootPointer(uint32_t newPointer) {
     while(root->pointer[i] != 0 && i < NUM_DIR_ENTRIES){
         i++;
     }
-    if(i > NUM_DIR_ENTRIES){
+    if(i >= NUM_DIR_ENTRIES){
        LOG("Über maxEntries hinaus");
     }
 
@@ -579,7 +609,7 @@ uint32_t MyFSMgr::readNextRootPointer(uint32_t oldPointer) {
  * @param blockPointer Pointer which points to a entry inside the FAT.
  * @return The linked value inside the FAT of the provided blockPointer.
  */
-uint32_t MyFSMgr::readFAT(uint32_t blockPointer){
+uint32_t MyFSMgr::readNextFATPointer(uint32_t blockPointer){
     blockPointer -= DATA_START;
     int offsetBlockNR = blockPointer / 128; //128 Pointer pro Block da ganzzahl Ergebnis = Block
     int offsetBlockPos = blockPointer % 128;//Position in dem Block
@@ -634,7 +664,7 @@ void MyFSMgr::removeFile(uint32_t nodePointer) {
     fillBlocks(pointer, pointer + 1); //Der erste Datenblock wird gelöscht.
 
 
-    while ((pointer = readFAT(pointer)) != MAX_UINT) { // Die Datei war größer als 1 Block, daher einträge in der FAT die gelöscht werden müssen
+    while ((pointer = readNextFATPointer(pointer)) != MAX_UINT) { // Die Datei war größer als 1 Block, daher einträge in der FAT die gelöscht werden müssen
 
         fillBlocks(pointer, pointer + 1); //Der Folgeblock wird gelöscht.
 //        removeFatPointer(oldpointer);
@@ -656,12 +686,6 @@ void MyFSMgr::removeFile(uint32_t nodePointer) {
 void MyFSMgr::removeFatPointer(uint32_t delPointer) {
     setFATBlockPointer(delPointer, 0);
 
-
-
-
-
-
-
 //  for (uint32_t i = FAT_START; i < FAT_ENDE; i++){
 //        _blockDevice->read(i, read);
 //        for (int j = 0; j < 512; j+=4) {
@@ -679,6 +703,22 @@ void MyFSMgr::removeFatPointer(uint32_t delPointer) {
 
 }
 
+
+void MyFSMgr::deleteFollowingBlocks(uint32_t dataPointer){
+    uint32_t oldPointer = dataPointer;
+    uint32_t currentPointer = readNextFATPointer(dataPointer);
+
+    while(currentPointer != MAX_UINT){
+        fillBlocks(currentPointer, currentPointer + 1);
+        oldPointer = currentPointer;
+        currentPointer = readNextFATPointer(currentPointer);
+        setFATBlockPointer(oldPointer, 0);
+        LOGF("currentPointer: %u\n", currentPointer);
+    }
+
+
+}
+
 /**
  * Remove the Root pointer to a provided file.
  *
@@ -686,18 +726,38 @@ void MyFSMgr::removeFatPointer(uint32_t delPointer) {
  */
 void MyFSMgr::removeRootPointer(uint32_t delPointer) {
     char read[BLOCK_SIZE];
-
     _blockDevice->read(ROOT_BLOCK, read);
-    for (int i = 0; i < 512; i+=4) {
-        uint32_t pointer = read[i] << 24 | read[i+1] << 16 | read[i+2] << 8 | read[i+3];
+    RootDirect* root = (RootDirect*)read;
+    uint32_t i= 0;
 
-        if (pointer == delPointer) {
-            for (int k = i; k < (i + 4); k++) // den Pointer mit dem Wert nullen.
-                read[k] = 0;
-            _blockDevice->write(ROOT_BLOCK, read); // schreiben damit der loop beendet werden kann
-            return;
-        }
+    while(root->pointer[i] != delPointer && i < NUM_DIR_ENTRIES){
+        i++;
     }
+    if(i >= NUM_DIR_ENTRIES){
+       LOG("Über maxEntries hinaus");
+    }
+
+    root->pointer[i] = 0;
+    _blockDevice->write(ROOT_BLOCK, (char*)root);
+
+
+
+
+
+
+//    char read[BLOCK_SIZE];
+//
+//    _blockDevice->read(ROOT_BLOCK, read);
+//    for (int i = 0; i < 512; i+=4) {
+//        uint32_t pointer = read[i] << 24 | read[i+1] << 16 | read[i+2] << 8 | read[i+3];
+//
+//        if (pointer == delPointer) {
+//            for (int k = i; k < (i + 4); k++) // den Pointer mit dem Wert nullen.
+//                read[k] = 0;
+//            _blockDevice->write(ROOT_BLOCK, read); // schreiben damit der loop beendet werden kann
+//            return;
+//        }
+//    }
 }
 
 /**
@@ -713,7 +773,7 @@ int MyFSMgr::moveBuffer(DataBuffer* db, int off) {
         return 0;
 
     while (blockOffset != db->blockNumber){
-        db->dataPointer = MyFSMgr::instance()->readFAT(db->dataPointer);
+        db->dataPointer = MyFSMgr::instance()->readNextFATPointer(db->dataPointer);
         if (db->dataPointer == MAX_UINT)
             return -1;
         db->blockNumber++;
@@ -733,7 +793,7 @@ int MyFSMgr::moveBuffer(DataBuffer* db, int off) {
 int MyFSMgr::moveBuffer(DataBuffer* db) {
     char read[BLOCK_SIZE];
 
-    db->dataPointer = MyFSMgr::instance()->readFAT(db->dataPointer);
+    db->dataPointer = MyFSMgr::instance()->readNextFATPointer(db->dataPointer);
     if (db->dataPointer == MAX_UINT)
         return -1;
     db->blockNumber++;

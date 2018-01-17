@@ -12,6 +12,7 @@
 #include <iostream>
 #include <string>
 #include <sys/stat.h>
+#include <time.h>
 
 // TODO Chris: Only used by GetAbsPath, could be replaced.
 #include <unistd.h>
@@ -24,7 +25,7 @@
 // Definitions
 static int const NAME_LENGTH      = 255; // Max. length of a filename
 static int const BLOCK_SIZE       = 512; // Logical Block Size
-static int const BLOC_COUNTS      = 100000;
+static int const BLOC_COUNTS      = 512;
 
 static int const NUM_DIR_ENTRIES  =  64; // Max. directory entries
 
@@ -73,7 +74,6 @@ struct Inode {
 struct DataBuffer {
     uint32_t blockNumber;
     uint32_t dataPointer;
-    struct Inode* node;
     char data[BLOCK_SIZE];
 };
 
@@ -104,6 +104,7 @@ private:
     void setFATBlockPointer(uint32_t blockPointer, uint32_t nextPointer);
     void removeFatPointer(uint32_t delPointer);
     void removeRootPointer(uint32_t delPointer);
+    void deleteFollowingBlocks(uint32_t dataPointer);
 
 
 public:
@@ -123,9 +124,10 @@ public:
     bool fileExists(char* path);
     void removeFile(uint32_t nodePointer);
     uint32_t readNextRootPointer(uint32_t position);
-    uint32_t readFAT(uint32_t blockPointer);
+    uint32_t readNextFATPointer(uint32_t blockPointer);
     void createNewInode(char* path, mode_t mode);
     uint32_t changeFileContent(char *path, char *buf, uint32_t size, uint32_t offset);
+    void changeTime(Inode* node, bool atim, bool mtim, bool ctim);
     int moveBuffer(DataBuffer* db, int offset);
     int moveBuffer(DataBuffer* db);
     int copyDataToBuffer(char* buf, char read[512], int from, int to, int offset);

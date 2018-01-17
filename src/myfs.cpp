@@ -18,7 +18,7 @@
 using namespace std;
 
 MyFS* MyFS::_instance = NULL;
-DataBuffer dataBuffer[64];
+DataBuffer dataBuffer[NUM_DIR_ENTRIES];
 
 #define RETURN_ERRNO(x) (x) == 0 ? 0 : -x
 
@@ -97,10 +97,9 @@ int MyFS::fuseUnlink(const char *path) {
     uint32_t pointer = -1;
     char copy[BLOCK_SIZE];
     Inode* node = (Inode*)copy;
-    path++;
     while ((pointer = MyFSMgr::instance()->readNextRootPointer(pointer)) != 0) {
         MyFSMgr::BDInstance()->read(pointer, (char*)node);
-        if (strcmp(node->fileName, path) == 0) {
+        if (strcmp(node->fileName, basename(path)) == 0) {
             MyFSMgr::instance()->removeFile(pointer);
             return 0;
         }
@@ -165,14 +164,13 @@ int MyFS::fuseOpen(const char *path, struct fuse_file_info *fileInfo) {
             db.blockNumber = 0;                                  //da wir max. 64 Datein haben, ein Array mit 64 Plätzen. Im fh kommt dann der Index der File
             MyFSMgr::BDInstance()->read(node->pointer, read);    //In den nachfolgenden Fuse Operationen können wir dann auf das File & den Buffer zugreifen
             memcpy(&db.data, read, 512);
-            db.node = node;
             db.dataPointer = node->pointer;
             dataBuffer[pointer - NODE_START] = db;
             fileInfo->fh = pointer - NODE_START;
             return 0;
         }
     }
-    return 0;   //Return error file not found
+    return -ENOENT;   //Return error file not found
 }
 
 int MyFS::fuseRead(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fileInfo) {
@@ -183,6 +181,10 @@ int MyFS::fuseRead(const char *path, char *buf, size_t size, off_t offset, struc
     int bufferOffset = 0;
     MyFSMgr::instance()->moveBuffer(&dataBuffer[fh], offset);   //Before start reading move Buffer to the requestet Block
     int maxRead = 0;
+    char* copy = new char[BLOCK_SIZE];
+    Inode* node = (Inode*) copy;
+
+    uint32_t nodePointer;
 
     while (size > 0) {  //Loop through the requestet size
         if (size >= BLOCK_SIZE) //Can we read 512 Byte or less?
@@ -197,6 +199,10 @@ int MyFS::fuseRead(const char *path, char *buf, size_t size, off_t offset, struc
         size -= maxRead;
         MyFSMgr::instance()->moveBuffer(&dataBuffer[fh]);
     }
+
+    MyFSMgr::instance()->findInode((char*)basename(path), node, &nodePointer);
+    MyFSMgr::instance()->changeTime(node, true, false, false);
+    MyFSMgr::instance()->BDInstance()->write(nodePointer, (char*)node);
     LOGF("buf größe : %i\n", strlen(buf));
 
     return bufferOffset;
@@ -250,7 +256,7 @@ int MyFS::fuseRemovexattr(const char *path, const char *name) {
 }
 
 int MyFS::fuseOpendir(const char *path, struct fuse_file_info *fileInfo) {
-    LOGM();
+    //LOGM();
     return 0;
 }
 
